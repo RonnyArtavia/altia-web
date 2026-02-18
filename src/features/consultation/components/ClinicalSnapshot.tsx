@@ -383,20 +383,6 @@ export function ClinicalSnapshot({
 }: ClinicalSnapshotProps) {
   if (!data) return null;
 
-  // Icon mapping for categories
-  const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-    medications: <Pill size={16} />,
-    conditions: <Stethoscope size={16} />,
-    allergies: <AlertTriangle size={16} />,
-  };
-
-  // Color classes for categories
-  const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-    medications: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-    conditions: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-    allergies: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-  };
-
   // Group FHIR items by category
   const groupedFHIR: Record<string, FHIRPlanItem[]> = {};
   if (data.fhir && Array.isArray(data.fhir)) {
@@ -411,32 +397,86 @@ export function ClinicalSnapshot({
 
   const totalItems = data.fhir?.length || 0;
 
-  return (
-    <div className="w-full space-y-4 animate-in fade-in slide-in-from-top-2 text-slate-800 text-left">
-      {/* Alerts */}
-      {data.alerts && Array.isArray(data.alerts) && data.alerts.length > 0 && (
-        <Card className="bg-red-50 border-red-100 shadow-sm">
-          <CardContent className="p-4 flex items-start gap-3 text-red-800 text-sm font-medium">
-            <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-600" />
-            <span className="break-words">{data.alerts[0]}</span>
-          </CardContent>
-        </Card>
-      )}
+  const s = {
+    p: { margin: "0 0 14px", color: "#333", lineHeight: 1.75 },
+    h1: { fontSize: 24, fontWeight: 700, margin: "0 0 8px", color: "#111" },
+    h2: { fontSize: 19, fontWeight: 700, margin: "24px 0 8px", color: "#111" },
+    h3: { fontSize: 16, fontWeight: 700, margin: "16px 0 6px", color: "#333" },
+    hr: { border: "none", borderTop: "1px solid #e8e8e8", margin: "16px 0" },
+    th: {
+      textAlign: "left" as const, padding: "10px 14px", borderBottom: "2px solid #e2e2e2",
+      fontWeight: 600, fontSize: 13, color: "#555",
+      fontFamily: "'DM Sans', sans-serif", background: "#fafafa",
+    },
+    td: { padding: "9px 14px", borderBottom: "1px solid #f0f0f0", verticalAlign: "top" as const, color: "#333" },
+    table: { width: "100%", borderCollapse: "collapse" as const, margin: "12px 0 20px", fontSize: 14 },
+    bullet: { margin: "0 0 6px", paddingLeft: 4, color: "#333", fontSize: 14 },
+    soapSection: {
+      background: "#fefefe",
+      border: "1px solid #e8e8e8",
+      borderRadius: "3px",
+      padding: "8px 12px",
+      margin: "0 0 4px",
+      minHeight: "auto"
+    }
+  };
 
-      {/* SOAP Card */}
-      <Card className="shadow-sm animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-500">
-        <CardHeader
-          className={`px-5 py-2.5 text-white text-xs font-bold uppercase tracking-widest flex-row items-center justify-between ${
-            isHistoryView ? 'bg-slate-600' : 'bg-slate-900'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <FileEdit size={14} />
-            <span>Nota Clínica SOAP</span>
+  return (
+    <>
+      <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+      {/* RESUMEN NARRATIVO CLÍNICO - Sticky */}
+      <div style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
+        background: "#ffffff",
+        borderBottom: "2px solid #e5e7eb",
+        margin: "0 0 20px",
+        padding: "16px 20px"
+      }}>
+        <div style={{
+          fontSize: 16,
+          lineHeight: 1.6,
+          color: "#2d3748",
+          fontWeight: 500,
+          padding: "12px 16px",
+          background: "#f8fafc",
+          border: "1px solid #e2e8f0",
+          borderLeft: "4px solid #4299e1",
+          borderRadius: "4px"
+        }}>
+          <h2 className="text-lg font-bold mb-3 text-blue-800" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            📋 RESUMEN NARRATIVO CLÍNICO
+          </h2>
+          <p style={{ margin: 0, fontSize: 16 }}>
+            {data?.narrativeSummary || "Resumen narrativo no disponible para esta consulta."}
+          </p>
+        </div>
+      </div>
+
+      <div className="w-full" style={{
+        fontFamily: "'Source Serif 4', Georgia, serif",
+        fontSize: 15,
+        lineHeight: 1.7,
+        color: "#1a1a1a",
+        padding: "0 20px 40px",
+      }}>
+
+        {/* Alerts */}
+        {data.alerts && Array.isArray(data.alerts) && data.alerts.length > 0 && (
+          <div style={{ margin: "0 0 20px", padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "4px" }}>
+            <div className="flex items-start gap-3 text-red-800 text-sm font-medium">
+              <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-600" />
+              <span className="break-words">{data.alerts[0]}</span>
+            </div>
           </div>
-          {!isHistoryView && <span className="text-[10px] opacity-60">IA Generada</span>}
-        </CardHeader>
-        <CardContent className="p-5 space-y-0.5 text-left text-slate-800">
+        )}
+
+        {/* Nota Clínica SOAP */}
+        <h2 style={s.h2}>Nota Clínica SOAP</h2>
+
+        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #e1e7ff" }}>
           <SoapMiniRow
             label="S"
             fullKey="s"
@@ -445,6 +485,9 @@ export function ClinicalSnapshot({
             onSave={(k, v) => onUpdateSoap?.(k === 's' ? 's' : 'subjective', v)}
             readOnly={isHistoryView}
           />
+        </div>
+
+        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #d1fae5" }}>
           <SoapMiniRow
             label="O"
             fullKey="o"
@@ -453,6 +496,9 @@ export function ClinicalSnapshot({
             onSave={(k, v) => onUpdateSoap?.(k === 'o' ? 'o' : 'objective', v)}
             readOnly={isHistoryView}
           />
+        </div>
+
+        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #fef3c7" }}>
           <SoapMiniRow
             label="A"
             fullKey="a"
@@ -461,6 +507,9 @@ export function ClinicalSnapshot({
             onSave={(k, v) => onUpdateSoap?.(k === 'a' ? 'a' : 'assessment', v)}
             readOnly={isHistoryView}
           />
+        </div>
+
+        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #e0e7ff" }}>
           <SoapMiniRow
             label="P"
             fullKey="p"
@@ -469,83 +518,74 @@ export function ClinicalSnapshot({
             onSave={(k, v) => onUpdateSoap?.(k === 'p' ? 'p' : 'plan', v)}
             readOnly={isHistoryView}
           />
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* IPS Clinical Extract Card */}
-      {totalItems > 0 && (
-        <Card className="shadow-sm">
-          <CardHeader className="px-5 py-3 bg-gradient-to-r from-indigo-400 to-violet-400 text-white flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileHeart size={16} />
-              <span className="text-xs font-bold uppercase tracking-widest">
-                {isHistoryView ? 'Extracto Clínico' : 'Resumen IPS'}
-              </span>
-            </div>
-            <Badge className="bg-white/20 text-white border-white/30">
-              {totalItems} {totalItems === 1 ? 'Registro' : 'Registros'}
-            </Badge>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
-            {Object.entries(groupedFHIR).map(([category, items]) => {
-              const defaultColor = { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' };
-              const colors = CATEGORY_COLORS[category] || defaultColor;
-              const icon = CATEGORY_ICONS[category] || <FileHeart size={16} />;
+        <hr style={s.hr} />
 
-              return (
-                <div key={category} className="space-y-2">
-                  <div className={`flex items-center justify-between ${colors.text}`}>
-                    <div className="flex items-center gap-2">
-                      {icon}
-                      <span className="text-xs font-bold uppercase tracking-wide">
-                        {category === 'medications' ? 'Medicamentos' :
-                         category === 'conditions' ? 'Diagnósticos' :
-                         category === 'allergies' ? 'Alergias' :
-                         category}
+        {/* Resumen de la Consulta */}
+        {totalItems > 0 && (
+          <>
+            <h2 style={s.h2}>Resumen de la Consulta</h2>
+            <p style={s.p}>
+              {totalItems} {totalItems === 1 ? 'registro' : 'registros'} clínico{totalItems === 1 ? '' : 's'} identificado{totalItems === 1 ? '' : 's'}:
+            </p>
+
+            {Object.entries(groupedFHIR).map(([category, items]) => (
+              <div key={category} style={{ marginBottom: "16px" }}>
+                <h3 style={s.h3}>
+                  {category === 'medications' ? 'Medicamentos' :
+                   category === 'conditions' ? 'Diagnósticos' :
+                   category === 'allergies' ? 'Alergias' :
+                   category} ({items.length})
+                </h3>
+
+                {items.map((item, i) => (
+                  <div key={item.id || i} style={s.bullet}>
+                    <strong>{item.display || item.text}</strong>
+                    {(item.details || item.dose) && (
+                      <div style={{ fontSize: 13, color: "#666", fontStyle: 'italic', marginTop: 4 }}>
+                        {item.details || item.dose}
+                      </div>
+                    )}
+                    {item.type === 'condition' && item.verificationStatus === 'presumptive' && (
+                      <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600, marginLeft: 8 }}>
+                        (Presuntivo)
                       </span>
-                      <Badge className={`${colors.bg} ${colors.text} text-xs`}>
-                        {items.length}
-                      </Badge>
-                    </div>
+                    )}
+                    {!isHistoryView && (
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          onClick={() => setIsEditing?.(true)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs h-auto p-1.5 text-slate-500 hover:text-indigo-600"
+                        >
+                          <FileEdit size={12} /> Editar
+                        </Button>
+                        {onRemoveFHIR && (
+                          <Button
+                            onClick={() => item.id && onRemoveFHIR(item.id)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-auto p-1.5 text-slate-500 hover:text-red-600"
+                          >
+                            <Trash2 size={12} /> Eliminar
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="space-y-1.5 pl-6">
-                    {items.map((item, i) => (
-                      <IPSItemRow
-                        key={item.id || i}
-                        item={item}
-                        colors={colors}
-                        onUpdate={onUpdateFHIR}
-                        onRemove={onRemoveFHIR}
-                        readOnly={isHistoryView}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </div>
+            ))}
 
-      {/* Patient Education Section */}
-      <Card className="shadow-sm">
-        <CardHeader className="px-5 py-2.5 bg-sky-100 text-sky-800 text-xs font-bold uppercase tracking-widest flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Lightbulb size={14} className="text-sky-600" />
-            <span>Educación y Recomendaciones</span>
-          </div>
-          {!isHistoryView && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-sky-600 hover:text-sky-800 hover:bg-sky-200 h-auto p-1.5"
-              title="Enviar por correo"
-            >
-              <Mail size={14} />
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="p-4">
+            <hr style={s.hr} />
+          </>
+        )}
+
+        {/* Educación y Recomendaciones */}
+        <h2 style={s.h2}>Educación y Recomendaciones</h2>
+        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #99f6e4" }}>
           <SoapMiniRow
             label="E"
             fullKey="education"
@@ -554,32 +594,33 @@ export function ClinicalSnapshot({
             readOnly={isHistoryView}
             onSave={(_, val) => onUpdateEducation?.(val)}
           />
-        </CardContent>
-      </Card>
-
-      {/* Finalize Button */}
-      {onFinalize && !isHistoryView && (
-        <div className="space-y-3 pt-2">
-          <Card className="bg-amber-50 border-amber-200">
-            <CardContent className="p-3 flex items-start gap-2.5">
-              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-800 leading-relaxed">
-                <strong>Atención:</strong> La consulta médica <span className="font-bold underline">no ha sido guardada</span>.
-                Puede realizar cambios ahora. Una vez guardada, la información será <span className="font-bold">permanente e inmodificable</span>.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Button
-            onClick={onFinalize}
-            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white py-3 gap-2"
-          >
-            <Check size={16} />
-            Guardar y Cerrar Consulta
-          </Button>
         </div>
-      )}
-    </div>
+
+        {/* Finalize Button */}
+        {onFinalize && !isHistoryView && (
+          <div style={{ marginTop: "24px" }}>
+            <hr style={s.hr} />
+            <div style={{ background: "#fefbf2", border: "1px solid #fed7aa", borderRadius: "4px", padding: "12px 16px", marginBottom: "12px" }}>
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  <strong>Atención:</strong> La consulta médica <span className="font-bold underline">no ha sido guardada</span>.
+                  Puede realizar cambios ahora. Una vez guardada, la información será <span className="font-bold">permanente e inmodificable</span>.
+                </p>
+              </div>
+            </div>
+
+            <Button
+              onClick={onFinalize}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white py-3 gap-2"
+            >
+              <Check size={16} />
+              Guardar y Cerrar Consulta
+            </Button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 

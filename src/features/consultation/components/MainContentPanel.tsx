@@ -27,6 +27,7 @@ import type {
 } from '../types/medical-notes';
 import { ClinicalSnapshot } from './ClinicalSnapshot';
 import { IPSDashboardCompact } from './IPSDashboardCompact';
+import { ClinicalSummaryReport } from './ClinicalSummaryReport';
 import { cn } from '@/lib/utils';
 
 interface MainContentPanelProps {
@@ -403,32 +404,15 @@ export function MainContentPanel({
       >
         <div className="w-full mx-auto pb-20">
 
-          {/* 🎯 NOTA EN PROGRESO (TIEMPO REAL) CARD - Exact copy from original */}
+          {/* NOTA EN PROGRESO - Sin contenedor card */}
           {inConsultation && (
-            <section className="mb-8 bg-white rounded-xl border border-indigo-100 shadow-md ring-1 ring-indigo-50 overflow-hidden relative group">
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500" />
-              <div className="p-3 border-b border-indigo-50 bg-gradient-to-r from-indigo-50/50 to-white flex justify-between items-center">
-                <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs uppercase tracking-wide">
-                  <div className="p-1 bg-indigo-100 rounded-md">
-                    <Sparkles size={14} className="text-indigo-600" />
-                  </div>
-                  Nota en Progreso (Tiempo Real)
-                </div>
-                <div className="text-[10px] text-indigo-400 font-mono tracking-wider flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  SINCRONIZADO
-                </div>
-              </div>
-              <div className="p-5 bg-gradient-to-b from-white to-slate-50/30">
-                <ClinicalSnapshot
-                  data={clinicalState}
-                  onUpdateSoap={onUpdateSoap}
-                  onUpdateFHIR={onUpdateFHIR}
-                  onRemoveFHIR={onRemoveFHIR}
-                  onUpdateEducation={onUpdateEducation}
-                />
-              </div>
-            </section>
+            <ClinicalSnapshot
+              data={clinicalState}
+              onUpdateSoap={onUpdateSoap}
+              onUpdateFHIR={onUpdateFHIR}
+              onRemoveFHIR={onRemoveFHIR}
+              onUpdateEducation={onUpdateEducation}
+            />
           )}
 
           {/* TAB: RESUMEN (DASHBOARD) */}
@@ -448,8 +432,19 @@ export function MainContentPanel({
             </div>
           )}
 
+          {/* TAB: RESUMEN CLÍNICO */}
+          {activeTab === 'resumen-clinico' && (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <ClinicalSummaryReport
+                patientRecord={patientRecord}
+                ipsData={ipsData}
+                vitalSigns={vitalSigns}
+              />
+            </div>
+          )}
+
           {/* Fallback for other tabs */}
-          {activeTab !== 'resumen' && (
+          {activeTab !== 'resumen' && activeTab !== 'resumen-clinico' && (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-sm">
               <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
                 <Sparkles size={32} className="text-slate-300" />

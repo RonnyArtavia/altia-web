@@ -138,6 +138,7 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
   const [activeTab, setActiveTab] = useState('resumen');
   const [openTabs, setOpenTabs] = useState<TabItem[]>([
     { id: 'resumen', title: 'Resumen IPS', icon: <Activity size={16} /> },
+    { id: 'resumen-clinico', title: 'Resumen Clínico', icon: <Stethoscope size={16} /> },
     { id: 'soap', title: 'Nota SOAP', icon: <FileText size={16} /> },
   ]);
 
