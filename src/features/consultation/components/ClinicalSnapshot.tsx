@@ -474,126 +474,952 @@ export function ClinicalSnapshot({
         )}
 
         {/* Nota Clínica SOAP */}
-        <h2 style={s.h2}>Nota Clínica SOAP</h2>
+        <div style={{
+          borderLeft: "3px solid #6366f1",
+          paddingLeft: "16px",
+          margin: "24px 0"
+        }}>
+          <h2 style={{ ...s.h2, color: "#6366f1", marginBottom: "12px" }}>
+            📋 Nota Clínica SOAP
+          </h2>
 
-        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #e1e7ff" }}>
-          <SoapMiniRow
-            label="S"
-            fullKey="s"
-            text={data.soap?.s || data.soap?.subjective || ''}
-            color="text-blue-600"
-            onSave={(k, v) => onUpdateSoap?.(k === 's' ? 's' : 'subjective', v)}
-            readOnly={isHistoryView}
-          />
-        </div>
+          <div style={s.soapSection}>
+            <SoapMiniRow
+              label="S"
+              fullKey="s"
+              text={data.soap?.s || data.soap?.subjective || ''}
+              color="text-blue-600"
+              onSave={(k, v) => onUpdateSoap?.(k === 's' ? 's' : 'subjective', v)}
+              readOnly={isHistoryView}
+            />
+          </div>
 
-        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #d1fae5" }}>
-          <SoapMiniRow
-            label="O"
-            fullKey="o"
-            text={data.soap?.o || data.soap?.objective || ''}
-            color="text-emerald-600"
-            onSave={(k, v) => onUpdateSoap?.(k === 'o' ? 'o' : 'objective', v)}
-            readOnly={isHistoryView}
-          />
-        </div>
+          <div style={s.soapSection}>
+            <SoapMiniRow
+              label="O"
+              fullKey="o"
+              text={data.soap?.o || data.soap?.objective || ''}
+              color="text-emerald-600"
+              onSave={(k, v) => onUpdateSoap?.(k === 'o' ? 'o' : 'objective', v)}
+              readOnly={isHistoryView}
+            />
+          </div>
 
-        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #fef3c7" }}>
-          <SoapMiniRow
-            label="A"
-            fullKey="a"
-            text={data.soap?.a || data.soap?.assessment || ''}
-            color="text-amber-600"
-            onSave={(k, v) => onUpdateSoap?.(k === 'a' ? 'a' : 'assessment', v)}
-            readOnly={isHistoryView}
-          />
-        </div>
+          <div style={s.soapSection}>
+            <SoapMiniRow
+              label="A"
+              fullKey="a"
+              text={data.soap?.a || data.soap?.assessment || ''}
+              color="text-amber-600"
+              onSave={(k, v) => onUpdateSoap?.(k === 'a' ? 'a' : 'assessment', v)}
+              readOnly={isHistoryView}
+            />
+          </div>
 
-        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #e0e7ff" }}>
-          <SoapMiniRow
-            label="P"
-            fullKey="p"
-            text={data.soap?.p || data.soap?.plan || ''}
-            color="text-indigo-400"
-            onSave={(k, v) => onUpdateSoap?.(k === 'p' ? 'p' : 'plan', v)}
-            readOnly={isHistoryView}
-          />
+          <div style={s.soapSection}>
+            <SoapMiniRow
+              label="P"
+              fullKey="p"
+              text={data.soap?.p || data.soap?.plan || ''}
+              color="text-indigo-400"
+              onSave={(k, v) => onUpdateSoap?.(k === 'p' ? 'p' : 'plan', v)}
+              readOnly={isHistoryView}
+            />
+          </div>
         </div>
 
         <hr style={s.hr} />
 
         {/* Resumen de la Consulta */}
         {totalItems > 0 && (
-          <>
-            <h2 style={s.h2}>Resumen de la Consulta</h2>
-            <p style={s.p}>
-              {totalItems} {totalItems === 1 ? 'registro' : 'registros'} clínico{totalItems === 1 ? '' : 's'} identificado{totalItems === 1 ? '' : 's'}:
-            </p>
+          <div style={{
+            borderLeft: "3px solid #0891b2",
+            paddingLeft: "16px",
+            margin: "24px 0"
+          }}>
+            <h2 style={{ ...s.h2, color: "#0891b2", marginBottom: "20px" }}>
+              📊 Resumen de la Consulta
+            </h2>
 
-            {Object.entries(groupedFHIR).map(([category, items]) => (
-              <div key={category} style={{ marginBottom: "16px" }}>
-                <h3 style={s.h3}>
-                  {category === 'medications' ? 'Medicamentos' :
-                   category === 'conditions' ? 'Diagnósticos' :
-                   category === 'allergies' ? 'Alergias' :
-                   category} ({items.length})
-                </h3>
+            <div style={{ display: "grid", gap: "20px" }}>
+              {/* Diagnósticos Card */}
+              {groupedFHIR.conditions && groupedFHIR.conditions.length > 0 && (
+                <div style={{
+                  background: "linear-gradient(135deg, #fef7f0 0%, #ffffff 100%)",
+                  border: "1px solid #fed7aa",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  borderLeft: "5px solid #ea580c"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "20px",
+                    paddingBottom: "12px",
+                    borderBottom: "2px solid #fed7aa"
+                  }}>
+                    <div style={{
+                      background: "linear-gradient(135deg, #ea580c 0%, #f97316 100%)",
+                      borderRadius: "12px",
+                      padding: "8px",
+                      color: "white",
+                      fontSize: "18px",
+                      boxShadow: "0 2px 4px rgba(234, 88, 12, 0.3)"
+                    }}>
+                      🏥
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        color: "#9a3412",
+                        margin: 0,
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}>
+                        Diagnósticos
+                      </h3>
+                    </div>
+                    <div style={{
+                      background: "#ea580c",
+                      color: "white",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 700
+                    }}>
+                      {groupedFHIR.conditions.length}
+                    </div>
+                  </div>
 
-                {items.map((item, i) => (
-                  <div key={item.id || i} style={s.bullet}>
-                    <strong>{item.display || item.text}</strong>
-                    {(item.details || item.dose) && (
-                      <div style={{ fontSize: 13, color: "#666", fontStyle: 'italic', marginTop: 4 }}>
-                        {item.details || item.dose}
-                      </div>
-                    )}
-                    {item.type === 'condition' && item.verificationStatus === 'presumptive' && (
-                      <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600, marginLeft: 8 }}>
-                        (Presuntivo)
-                      </span>
-                    )}
-                    {!isHistoryView && (
-                      <div className="mt-2 flex gap-2">
-                        <Button
-                          onClick={() => setIsEditing?.(true)}
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs h-auto p-1.5 text-slate-500 hover:text-indigo-600"
-                        >
-                          <FileEdit size={12} /> Editar
-                        </Button>
-                        {onRemoveFHIR && (
-                          <Button
-                            onClick={() => item.id && onRemoveFHIR(item.id)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs h-auto p-1.5 text-slate-500 hover:text-red-600"
-                          >
-                            <Trash2 size={12} /> Eliminar
-                          </Button>
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {groupedFHIR.conditions.map((item, i) => (
+                      <div key={item.id || i} style={{
+                        background: "#ffffff",
+                        border: "1px solid #fed7aa",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "16px",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#1f2937",
+                            marginBottom: "6px",
+                            lineHeight: 1.4
+                          }}>
+                            {item.display || item.text}
+                          </div>
+                          {item.details && (
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#6b7280",
+                              fontStyle: "italic",
+                              marginBottom: "6px"
+                            }}>
+                              {item.details}
+                            </div>
+                          )}
+                          {item.verificationStatus === 'presumptive' && (
+                            <span style={{
+                              display: "inline-block",
+                              fontSize: "11px",
+                              color: "#f59e0b",
+                              fontWeight: 600,
+                              background: "#fef3c7",
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                              border: "1px solid #fcd34d"
+                            }}>
+                              Presuntivo
+                            </span>
+                          )}
+                        </div>
+                        {!isHistoryView && (
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <Button
+                              onClick={() => onUpdateFHIR?.(item.id, item)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 w-10 p-0 text-slate-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+                              title="Editar diagnóstico"
+                            >
+                              <FileEdit size={16} />
+                            </Button>
+                            {onRemoveFHIR && (
+                              <Button
+                                onClick={() => item.id && onRemoveFHIR(item.id)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-            ))}
+                </div>
+              )}
 
-            <hr style={s.hr} />
-          </>
+              {/* Medicamentos Card */}
+              {groupedFHIR.medications && groupedFHIR.medications.length > 0 && (
+                <div style={{
+                  background: "linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%)",
+                  border: "1px solid #bae6fd",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  borderLeft: "5px solid #0284c7"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "20px",
+                    paddingBottom: "12px",
+                    borderBottom: "2px solid #bae6fd"
+                  }}>
+                    <div style={{
+                      background: "linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)",
+                      borderRadius: "12px",
+                      padding: "8px",
+                      color: "white",
+                      fontSize: "18px",
+                      boxShadow: "0 2px 4px rgba(2, 132, 199, 0.3)"
+                    }}>
+                      💊
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        color: "#0369a1",
+                        margin: 0,
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}>
+                        Medicamentos
+                      </h3>
+                    </div>
+                    <div style={{
+                      background: "#0284c7",
+                      color: "white",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 700
+                    }}>
+                      {groupedFHIR.medications.length}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {groupedFHIR.medications.map((item, i) => (
+                      <div key={item.id || i} style={{
+                        background: "#ffffff",
+                        border: "1px solid #bae6fd",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "16px",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#1f2937",
+                            marginBottom: "6px",
+                            lineHeight: 1.4
+                          }}>
+                            {item.display || item.text}
+                          </div>
+                          {(item.details || item.dose) && (
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#6b7280",
+                              marginBottom: "6px"
+                            }}>
+                              Dosis: {item.details || item.dose}
+                            </div>
+                          )}
+                          {item.warning && (
+                            <span style={{
+                              display: "inline-block",
+                              fontSize: "11px",
+                              color: item.warningLevel === 'critical' ? "#dc2626" : "#f59e0b",
+                              fontWeight: 600,
+                              background: item.warningLevel === 'critical' ? "#fee2e2" : "#fef3c7",
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                              border: `1px solid ${item.warningLevel === 'critical' ? "#fecaca" : "#fcd34d"}`
+                            }}>
+                              ⚠ {item.warning}
+                            </span>
+                          )}
+                        </div>
+                        {!isHistoryView && (
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <Button
+                              onClick={() => onUpdateFHIR?.(item.id, item)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 w-10 p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                              title="Editar medicamento"
+                            >
+                              <FileEdit size={16} />
+                            </Button>
+                            {onRemoveFHIR && (
+                              <Button
+                                onClick={() => item.id && onRemoveFHIR(item.id)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Alergias Card */}
+              {groupedFHIR.allergies && groupedFHIR.allergies.length > 0 && (
+                <div style={{
+                  background: "linear-gradient(135deg, #fef2f2 0%, #ffffff 100%)",
+                  border: "1px solid #fecaca",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  borderLeft: "5px solid #dc2626"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "20px",
+                    paddingBottom: "12px",
+                    borderBottom: "2px solid #fecaca"
+                  }}>
+                    <div style={{
+                      background: "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)",
+                      borderRadius: "12px",
+                      padding: "8px",
+                      color: "white",
+                      fontSize: "18px",
+                      boxShadow: "0 2px 4px rgba(220, 38, 38, 0.3)"
+                    }}>
+                      ⚠️
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        color: "#991b1b",
+                        margin: 0,
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}>
+                        Alergias
+                      </h3>
+                    </div>
+                    <div style={{
+                      background: "#dc2626",
+                      color: "white",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 700
+                    }}>
+                      {groupedFHIR.allergies.length}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {groupedFHIR.allergies.map((item, i) => (
+                      <div key={item.id || i} style={{
+                        background: "#ffffff",
+                        border: "1px solid #fecaca",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "16px",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#1f2937",
+                            marginBottom: "6px",
+                            lineHeight: 1.4
+                          }}>
+                            {item.display || item.text}
+                          </div>
+                          {item.details && (
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#6b7280",
+                              fontStyle: "italic"
+                            }}>
+                              {item.details}
+                            </div>
+                          )}
+                        </div>
+                        {!isHistoryView && (
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <Button
+                              onClick={() => onUpdateFHIR?.(item.id, item)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 w-10 p-0 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Editar alergia"
+                            >
+                              <FileEdit size={16} />
+                            </Button>
+                            {onRemoveFHIR && (
+                              <Button
+                                onClick={() => item.id && onRemoveFHIR(item.id)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Procedimientos Card */}
+              {groupedFHIR.procedures && groupedFHIR.procedures.length > 0 && (
+                <div style={{
+                  background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  borderLeft: "5px solid #059669"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "20px",
+                    paddingBottom: "12px",
+                    borderBottom: "2px solid #bbf7d0"
+                  }}>
+                    <div style={{
+                      background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
+                      borderRadius: "12px",
+                      padding: "8px",
+                      color: "white",
+                      fontSize: "18px",
+                      boxShadow: "0 2px 4px rgba(5, 150, 105, 0.3)"
+                    }}>
+                      🔬
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        color: "#047857",
+                        margin: 0,
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}>
+                        Procedimientos
+                      </h3>
+                    </div>
+                    <div style={{
+                      background: "#059669",
+                      color: "white",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 700
+                    }}>
+                      {groupedFHIR.procedures.length}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {groupedFHIR.procedures.map((item, i) => (
+                      <div key={item.id || i} style={{
+                        background: "#ffffff",
+                        border: "1px solid #bbf7d0",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "16px",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#1f2937",
+                            marginBottom: "6px",
+                            lineHeight: 1.4
+                          }}>
+                            {item.display || item.text}
+                          </div>
+                          {item.details && (
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#6b7280",
+                              fontStyle: "italic"
+                            }}>
+                              {item.details}
+                            </div>
+                          )}
+                        </div>
+                        {!isHistoryView && (
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <Button
+                              onClick={() => onUpdateFHIR?.(item.id, item)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 w-10 p-0 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                              title="Editar procedimiento"
+                            >
+                              <FileEdit size={16} />
+                            </Button>
+                            {onRemoveFHIR && (
+                              <Button
+                                onClick={() => item.id && onRemoveFHIR(item.id)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Órdenes Médicas Card */}
+              {(groupedFHIR.labOrders || groupedFHIR.imagingOrders) &&
+               (groupedFHIR.labOrders?.length > 0 || groupedFHIR.imagingOrders?.length > 0) && (
+                <div style={{
+                  background: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  borderLeft: "5px solid #475569"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "20px",
+                    paddingBottom: "12px",
+                    borderBottom: "2px solid #cbd5e1"
+                  }}>
+                    <div style={{
+                      background: "linear-gradient(135deg, #475569 0%, #64748b 100%)",
+                      borderRadius: "12px",
+                      padding: "8px",
+                      color: "white",
+                      fontSize: "18px",
+                      boxShadow: "0 2px 4px rgba(71, 85, 105, 0.3)"
+                    }}>
+                      📋
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        color: "#334155",
+                        margin: 0,
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}>
+                        Órdenes Médicas
+                      </h3>
+                    </div>
+                    <div style={{
+                      background: "#475569",
+                      color: "white",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 700
+                    }}>
+                      {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].length}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].map((item, i) => (
+                      <div key={item.id || i} style={{
+                        background: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "16px",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#1f2937",
+                            marginBottom: "6px",
+                            lineHeight: 1.4
+                          }}>
+                            {item.display || item.text}
+                          </div>
+                          {item.details && (
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#6b7280",
+                              fontStyle: "italic"
+                            }}>
+                              {item.details}
+                            </div>
+                          )}
+                        </div>
+                        {!isHistoryView && (
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <Button
+                              onClick={() => onUpdateFHIR?.(item.id, item)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 w-10 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-all"
+                              title="Editar orden"
+                            >
+                              <FileEdit size={16} />
+                            </Button>
+                            {onRemoveFHIR && (
+                              <Button
+                                onClick={() => item.id && onRemoveFHIR(item.id)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resultados de Laboratorio Card */}
+              {groupedFHIR.labResults && groupedFHIR.labResults.length > 0 && (
+                <div style={{
+                  background: "linear-gradient(135deg, #fefce8 0%, #ffffff 100%)",
+                  border: "1px solid #fde047",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  borderLeft: "5px solid #eab308"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "20px",
+                    paddingBottom: "12px",
+                    borderBottom: "2px solid #fde047"
+                  }}>
+                    <div style={{
+                      background: "linear-gradient(135deg, #eab308 0%, #f59e0b 100%)",
+                      borderRadius: "12px",
+                      padding: "8px",
+                      color: "white",
+                      fontSize: "18px",
+                      boxShadow: "0 2px 4px rgba(234, 179, 8, 0.3)"
+                    }}>
+                      🧪
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        color: "#a16207",
+                        margin: 0,
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}>
+                        Resultados de Laboratorio
+                      </h3>
+                    </div>
+                    <div style={{
+                      background: "#eab308",
+                      color: "white",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 700
+                    }}>
+                      {groupedFHIR.labResults.length}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {groupedFHIR.labResults.map((item, i) => (
+                      <div key={item.id || i} style={{
+                        background: "#ffffff",
+                        border: "1px solid #fde047",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "16px",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#1f2937",
+                            marginBottom: "6px",
+                            lineHeight: 1.4
+                          }}>
+                            {item.display || item.text}
+                          </div>
+                          {item.details && (
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#6b7280",
+                              marginBottom: "6px"
+                            }}>
+                              {item.details}
+                            </div>
+                          )}
+                          {item.flag && (
+                            <span style={{
+                              display: "inline-block",
+                              fontSize: "11px",
+                              color: item.flag === 'critical' ? "#dc2626" : item.flag === 'high' ? "#f59e0b" : "#059669",
+                              fontWeight: 600,
+                              background: item.flag === 'critical' ? "#fee2e2" : item.flag === 'high' ? "#fef3c7" : "#d1fae5",
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                              border: `1px solid ${item.flag === 'critical' ? "#fecaca" : item.flag === 'high' ? "#fcd34d" : "#a7f3d0"}`
+                            }}>
+                              {item.flag === 'critical' && '🚨'} {item.flag === 'high' && '⬆'} {item.flag === 'low' && '⬇'} {item.flag}
+                            </span>
+                          )}
+                        </div>
+                        {!isHistoryView && (
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <Button
+                              onClick={() => onUpdateFHIR?.(item.id, item)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 w-10 p-0 text-slate-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all"
+                              title="Editar resultado"
+                            >
+                              <FileEdit size={16} />
+                            </Button>
+                            {onRemoveFHIR && (
+                              <Button
+                                onClick={() => item.id && onRemoveFHIR(item.id)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Otras categorías dinámicas */}
+              {Object.entries(groupedFHIR).map(([category, items]) => {
+                // Skip categories we've already handled
+                if (['conditions', 'medications', 'allergies', 'procedures', 'labOrders', 'imagingOrders', 'labResults'].includes(category)) {
+                  return null;
+                }
+
+                return items.length > 0 ? (
+                  <div key={category} style={{
+                    background: "linear-gradient(135deg, #f3f4f6 0%, #ffffff 100%)",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "16px",
+                    padding: "24px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                    borderLeft: "5px solid #6b7280"
+                  }}>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginBottom: "20px",
+                      paddingBottom: "12px",
+                      borderBottom: "2px solid #d1d5db"
+                    }}>
+                      <div style={{
+                        background: "linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)",
+                        borderRadius: "12px",
+                        padding: "8px",
+                        color: "white",
+                        fontSize: "18px",
+                        boxShadow: "0 2px 4px rgba(107, 114, 128, 0.3)"
+                      }}>
+                        📌
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{
+                          fontSize: "18px",
+                          fontWeight: 700,
+                          color: "#374151",
+                          margin: 0,
+                          fontFamily: "'DM Sans', sans-serif"
+                        }}>
+                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                        </h3>
+                      </div>
+                      <div style={{
+                        background: "#6b7280",
+                        color: "white",
+                        padding: "4px 12px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: 700
+                      }}>
+                        {items.length}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gap: "12px" }}>
+                      {items.map((item, i) => (
+                        <div key={item.id || i} style={{
+                          background: "#ffffff",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "12px",
+                          padding: "16px",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: "16px",
+                          transition: "all 0.2s ease",
+                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              fontSize: "15px",
+                              fontWeight: 600,
+                              color: "#1f2937",
+                              marginBottom: "6px",
+                              lineHeight: 1.4
+                            }}>
+                              {item.display || item.text}
+                            </div>
+                            {item.details && (
+                              <div style={{
+                                fontSize: "13px",
+                                color: "#6b7280",
+                                fontStyle: "italic"
+                              }}>
+                                {item.details}
+                              </div>
+                            )}
+                          </div>
+                          {!isHistoryView && (
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                              <Button
+                                onClick={() => onUpdateFHIR?.(item.id, item)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
+                                title={`Editar ${category}`}
+                              >
+                                <FileEdit size={16} />
+                              </Button>
+                              {onRemoveFHIR && (
+                                <Button
+                                  onClick={() => item.id && onRemoveFHIR(item.id)}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  title={`Eliminar ${category}`}
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })}
+            </div>
+          </div>
         )}
 
         {/* Educación y Recomendaciones */}
-        <h2 style={s.h2}>Educación y Recomendaciones</h2>
-        <div style={{ ...s.soapSection, background: "#ffffff", border: "1px solid #99f6e4" }}>
-          <SoapMiniRow
-            label="E"
-            fullKey="education"
-            text={data.healthEducation || ''}
-            color="text-sky-600"
-            readOnly={isHistoryView}
-            onSave={(_, val) => onUpdateEducation?.(val)}
-          />
+        <div style={{
+          borderLeft: "3px solid #0ea5e9",
+          paddingLeft: "16px",
+          margin: "24px 0"
+        }}>
+          <h2 style={{ ...s.h2, color: "#0ea5e9", marginBottom: "12px" }}>
+            💡 Educación y Recomendaciones
+          </h2>
+          <div style={s.soapSection}>
+            <SoapMiniRow
+              label="E"
+              fullKey="education"
+              text={data.healthEducation || ''}
+              color="text-sky-600"
+              readOnly={isHistoryView}
+              onSave={(_, val) => onUpdateEducation?.(val)}
+            />
+          </div>
         </div>
 
         {/* Finalize Button */}

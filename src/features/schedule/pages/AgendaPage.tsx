@@ -750,6 +750,99 @@ function WeekView({
     }
   }
 
+  // Helper function to calculate layout for overlapping appointments (Outlook-style)
+  const calculateAppointmentLayout = (
+    appointments: AppointmentData[],
+    timeSlots: string[],
+    slotDuration: number,
+    slotHeight: number
+  ): Array<{
+    appointment: AppointmentData
+    position: { top: number; height: number } | null
+    layout: { left: number; width: number }
+  }> => {
+    if (appointments.length === 0) return []
+
+    // Calculate position for each appointment
+    const appointmentsWithPosition = appointments.map(appointment => ({
+      appointment,
+      position: getAppointmentPosition(
+        new Date(appointment.start),
+        new Date(appointment.end),
+        timeSlots,
+        slotDuration,
+        slotHeight
+      ),
+      startTime: new Date(appointment.start).getTime(),
+      endTime: new Date(appointment.end).getTime()
+    })).filter(apt => apt.position !== null)
+
+    // Sort by start time for proper layout calculation
+    appointmentsWithPosition.sort((a, b) => a.startTime - b.startTime)
+
+    // Detect overlapping appointments and assign columns
+    const columns: Array<{
+      appointments: typeof appointmentsWithPosition[0][]
+      endTime: number
+    }> = []
+
+    appointmentsWithPosition.forEach(apt => {
+      // Find the first available column (one that doesn't overlap with this appointment)
+      let assignedColumn = -1
+      for (let i = 0; i < columns.length; i++) {
+        if (columns[i].endTime <= apt.startTime) {
+          assignedColumn = i
+          break
+        }
+      }
+
+      // If no available column, create a new one
+      if (assignedColumn === -1) {
+        assignedColumn = columns.length
+        columns.push({
+          appointments: [],
+          endTime: apt.endTime
+        })
+      }
+
+      // Assign appointment to column and update end time
+      columns[assignedColumn].appointments.push(apt)
+      columns[assignedColumn].endTime = Math.max(columns[assignedColumn].endTime, apt.endTime)
+    })
+
+    // Calculate layout dimensions using CSS percentages for responsive design
+    const totalColumns = columns.length
+    const totalPadding = 4 // Total horizontal padding in pixels
+    const columnGap = totalColumns > 1 ? 2 : 0 // Gap between columns
+    const availableWidth = 100 - (totalPadding / 10) // Convert px to approximate percentage
+    const columnWidth = totalColumns > 1 ? (availableWidth - (columnGap * (totalColumns - 1))) / totalColumns : availableWidth
+    const columnSpacing = columnGap
+
+    // Assign layout to each appointment
+    const result: Array<{
+      appointment: AppointmentData
+      position: { top: number; height: number } | null
+      layout: { left: number; width: number }
+    }> = []
+
+    columns.forEach((column, columnIndex) => {
+      column.appointments.forEach(apt => {
+        // Calculate left position as percentage
+        const leftPercentage = (columnIndex * (columnWidth + columnSpacing)) + 2
+        result.push({
+          appointment: apt.appointment,
+          position: apt.position,
+          layout: {
+            left: leftPercentage,
+            width: columnWidth
+          }
+        })
+      })
+    })
+
+    return result
+  }
+
   // Show loading state
   if (loading) {
     return (
@@ -790,10 +883,10 @@ function WeekView({
   const slotHeight = 60 // Height per 30-minute slot
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Day headers */}
-      <div className="flex border-b bg-white">
-        <div className="w-16 flex-shrink-0"></div>
+      <div className="flex border-b bg-white flex-shrink-0">
+        <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
         {weekDays.map((day) => {
           const daySchedule = getDayScheduleFromWeek(daySchedules, day)
           const hasSchedule = !!daySchedule
@@ -802,20 +895,9 @@ function WeekView({
             <button
               key={day.toISOString()}
               className={cn(
-                "flex-1 hover:bg-gray-50 transition-colors",
+                "flex-1 hover:bg-gray-50 transition-colors p-3 border-r border-gray-200 min-w-0",
                 !hasSchedule && "opacity-50"
               )}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-end',
-                borderRight: '1px solid var(--neutralTertiaryAlt)',
-                color: 'var(--neutralPrimary)',
-                fontSize: '12px',
-                letterSpacing: '-0.1px',
-                minWidth: '100px',
-                paddingBottom: '5px',
-                paddingLeft: '8px'
-              }}
               onClick={() => onDayClick(day)}
             >
               <div className="flex flex-col items-start">
@@ -843,9 +925,9 @@ function WeekView({
       </div>
 
       {/* Week grid */}
-      <div className="flex-1 flex overflow-auto">
+      <div className="flex-1 flex overflow-auto min-h-0">
         {/* Time labels */}
-        <div className="w-16 flex-shrink-0 border-r bg-white pt-4">
+        <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-white">
           {timeSlots.map((timeSlot, index) => {
             const [hour, minute] = timeSlot.split(':').map(Number)
             const showLabel = minute === 0
@@ -888,14 +970,14 @@ function WeekView({
         </div>
 
         {/* Days columns */}
-        <div className="flex flex-1 pt-4">
+        <div className="flex flex-1 min-w-0">
           {weekDays.map((day) => {
             const daySchedule = getDayScheduleFromWeek(daySchedules, day)
             const dayAppointments = appointments.filter(apt => isSameDay(new Date(apt.start), day))
             const dayTimeSlots = daySchedule ? generateTimeSlotsFromConfig(daySchedule) : []
 
             return (
-              <div key={day.toISOString()} className="flex-1 border-r border-gray-200 relative">
+              <div key={day.toISOString()} className="flex-1 border-r border-gray-200 relative min-w-0">
                 {!daySchedule ? (
                   // No schedule for this day
                   <div className="flex items-center justify-center h-full bg-gray-50 opacity-50">
@@ -954,87 +1036,91 @@ function WeekView({
                     )}
 
                     {/* Appointments */}
-                    {dayAppointments.map((appointment) => {
-                      const startTime = new Date(appointment.start)
-                      const endTime = new Date(appointment.end)
-                      const position = getAppointmentPosition(startTime, endTime, timeSlots, daySchedule?.slotDuration || 30, slotHeight)
+                    {(() => {
+                      // Calculate layout for overlapping appointments (Outlook-style)
+                      const appointmentLayout = calculateAppointmentLayout(dayAppointments, timeSlots, daySchedule?.slotDuration || 30, slotHeight)
 
-                      if (!position) return null
+                      return appointmentLayout.map((appointmentInfo) => {
+                        const { appointment, position, layout } = appointmentInfo
 
-                      // Check if appointment is in the past (including current time)
-                      const now = new Date()
-                      const isPastAppointment = endTime <= now
-                      const isCancelledOrNoShow = appointment.status === 'cancelled' || appointment.status === 'no-show'
-                      // Determine if appointment can be interacted with (edited, cancelled, dragged)
-                      const isInteractive = !isPastAppointment && !isCancelledOrNoShow
+                        if (!position) return null
 
-                      return (
-                        <button
-                          key={appointment.id}
-                          className={cn(
-                            "absolute text-left transition-all z-20",
-                            // Interaction states based on appointment status
-                            !isInteractive
-                              ? "text-gray-700 cursor-default" // Past or cancelled - gray and not clickable
-                              : "text-slate-800 hover:shadow-lg hover:scale-[1.02] cursor-pointer" // Active appointments - interactive
-                          )}
-                          style={{
-                            top: `${position.top}px`,
-                            height: `${position.height}px`,
-                            left: '2px',
-                            right: '2px',
-                            // Microsoft Outlook-style design with different states
-                            background: isPastAppointment && !isCancelledOrNoShow
-                              ? '#f8f9fa' // Very light gray for past appointments
-                              : isCancelledOrNoShow
-                              ? '#f5f5f5' // Light gray background for cancelled
-                              : '#e8f4fd', // Light blue background like Outlook for active
-                            borderRadius: '4px',
-                            border: isPastAppointment && !isCancelledOrNoShow
-                              ? '1px solid #e9ecef' // Very light border for past
-                              : isCancelledOrNoShow
-                              ? '1px solid #d1d5db' // Light gray border for cancelled
-                              : '1px solid #bfdbfe', // Light blue border for active
-                            borderLeftWidth: '3px', // Thin accent border
-                            borderLeftColor: isPastAppointment && !isCancelledOrNoShow
-                              ? '#adb5bd' // Muted gray for past appointments
-                              : isCancelledOrNoShow
-                              ? '#9ca3af' // Gray accent for cancelled
-                              : '#1d4ed8', // Dark blue accent like Outlook for active
-                            borderLeftStyle: 'solid',
-                            // Shadow and hover effects
-                            boxShadow: isPastAppointment
-                              ? '0 1px 2px rgba(0, 0, 0, 0.05)' // Minimal shadow for past appointments
-                              : isCancelledOrNoShow
-                              ? '0 1px 3px rgba(0, 0, 0, 0.08)'
-                              : '0 2px 4px rgba(25, 118, 210, 0.08), 0 1px 2px rgba(25, 118, 210, 0.06)',
-                            // Typography and spacing - Outlook-style padding
-                            padding: '4px 8px 4px 10px', // Balanced padding with space for left border
-                            fontSize: '11px',
-                            fontWeight: '600', // Semibold
-                            lineHeight: '1.3',
-                            overflow: 'hidden',
-                            opacity: isPastAppointment ? 0.7 : isCancelledOrNoShow ? 0.85 : 1,
-                          }}
-                          onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
-                        >
-                          <div className="flex items-center space-x-1">
-                            {appointment.type === 'telemedicine' && (
-                              <Video className="h-3 w-3" />
+                        // Check if appointment is in the past (including current time)
+                        const now = new Date()
+                        const endTime = new Date(appointment.end)
+                        const isPastAppointment = endTime <= now
+                        const isCancelledOrNoShow = appointment.status === 'cancelled' || appointment.status === 'no-show'
+                        // Determine if appointment can be interacted with (edited, cancelled, dragged)
+                        const isInteractive = !isPastAppointment && !isCancelledOrNoShow
+
+                        return (
+                          <button
+                            key={appointment.id}
+                            className={cn(
+                              "absolute text-left transition-all z-20",
+                              // Interaction states based on appointment status
+                              !isInteractive
+                                ? "text-gray-700 cursor-default" // Past or cancelled - gray and not clickable
+                                : "text-slate-800 hover:shadow-lg hover:scale-[1.02] cursor-pointer" // Active appointments - interactive
                             )}
-                            <span className="truncate">
-                              {appointment.patientName}
-                            </span>
-                          </div>
-                          {/* Status indicator for past appointments */}
-                          {isPastAppointment && !isCancelledOrNoShow && (
-                            <div className="text-[9px] text-gray-500 mt-0.5">
-                              {appointment.status === 'fulfilled' ? 'Atendida' : 'No atendida'}
+                            style={{
+                              top: `${position.top}px`,
+                              height: `${position.height}px`,
+                              left: `${layout.left}%`,
+                              width: `${layout.width}%`,
+                              // Microsoft Outlook-style design with different states
+                              background: isPastAppointment && !isCancelledOrNoShow
+                                ? '#f8f9fa' // Very light gray for past appointments
+                                : isCancelledOrNoShow
+                                ? '#f5f5f5' // Light gray background for cancelled
+                                : '#e8f4fd', // Light blue background like Outlook for active
+                              borderRadius: '4px',
+                              border: isPastAppointment && !isCancelledOrNoShow
+                                ? '1px solid #e9ecef' // Very light border for past
+                                : isCancelledOrNoShow
+                                ? '1px solid #d1d5db' // Light gray border for cancelled
+                                : '1px solid #bfdbfe', // Light blue border for active
+                              borderLeftWidth: '3px', // Thin accent border
+                              borderLeftColor: isPastAppointment && !isCancelledOrNoShow
+                                ? '#adb5bd' // Muted gray for past appointments
+                                : isCancelledOrNoShow
+                                ? '#9ca3af' // Gray accent for cancelled
+                                : '#1d4ed8', // Dark blue accent like Outlook for active
+                              borderLeftStyle: 'solid',
+                              // Shadow and hover effects
+                              boxShadow: isPastAppointment
+                                ? '0 1px 2px rgba(0, 0, 0, 0.05)' // Minimal shadow for past appointments
+                                : isCancelledOrNoShow
+                                ? '0 1px 3px rgba(0, 0, 0, 0.08)'
+                                : '0 2px 4px rgba(25, 118, 210, 0.08), 0 1px 2px rgba(25, 118, 210, 0.06)',
+                              // Typography and spacing - Outlook-style padding
+                              padding: '6px 8px', // Balanced padding
+                              fontSize: '12px', // Increased for better readability
+                              fontWeight: '600', // Semibold
+                              lineHeight: '1.4', // Better line height
+                              overflow: 'hidden',
+                              opacity: isPastAppointment ? 0.7 : isCancelledOrNoShow ? 0.85 : 1,
+                            }}
+                            onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
+                          >
+                            <div className="flex items-center space-x-1">
+                              {appointment.type === 'telemedicine' && (
+                                <Video className="h-3 w-3" />
+                              )}
+                              <span className="truncate">
+                                {appointment.patientName}
+                              </span>
                             </div>
-                          )}
-                        </button>
-                      )
-                    })}
+                            {/* Status indicator for past appointments */}
+                            {isPastAppointment && !isCancelledOrNoShow && (
+                              <div className="text-[9px] text-gray-500 mt-0.5">
+                                {appointment.status === 'fulfilled' ? 'Atendida' : 'No atendida'}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })
+                    })()}
                   </>
                 )}
               </div>
