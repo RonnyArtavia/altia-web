@@ -372,13 +372,14 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         })) || [],
 
         conditions: patientConditions?.map(condition => ({
-          name: condition.code || condition.display || 'Condición no especificada',
-          status: condition.clinicalStatus === 'active' ? 'Activa' :
-            condition.clinicalStatus === 'resolved' ? 'Resuelta' :
-              condition.clinicalStatus || 'Estado desconocido',
-          date: condition.recordedDate ? new Date(condition.recordedDate).toLocaleDateString() : undefined,
-          doctor: condition.recorder || 'Dr. No especificado',
-          notes: condition.note
+          name: condition.condition || 'Condición no especificada',
+          status: condition.status === 'active' ? 'Activa' :
+            condition.status === 'resolved' ? 'Resuelta' :
+              condition.status === 'chronic' ? 'Crónica' :
+              condition.status || 'Estado desconocido',
+          date: condition.diagnosedDate ? new Date(condition.diagnosedDate).toLocaleDateString() : undefined,
+          doctor: condition.doctorName || 'Dr. No especificado',
+          notes: condition.notes
         })) || [],
 
         vaccines: patientImmunizations?.map(immunization => ({

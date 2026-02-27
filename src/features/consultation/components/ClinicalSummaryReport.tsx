@@ -1,9 +1,26 @@
 /**
- * ClinicalSummaryReport - Professional Clinical Summary Document
- * Based on medical briefing design, adapts IPS data into formal clinical report
+ * ClinicalSummaryReport - Professional Clinical Folio
+ * Clean white-card layout with colored section accents,
+ * strong typographic hierarchy, and clear data presentation.
  */
 
 import React, { useState } from 'react';
+import {
+  AlertCircle,
+  Stethoscope,
+  Pill,
+  HeartPulse,
+  FlaskConical,
+  Syringe,
+  ClipboardList,
+  Clock,
+  X,
+  ArrowRight,
+  NotebookPen,
+  FileBarChart,
+  BookOpen,
+  CircleDot,
+} from 'lucide-react';
 import type { IPSDisplayData, VitalSignsData, PatientRecordDisplay, ConsultationEntry } from '../types/medical-notes';
 
 interface ClinicalSummaryReportProps {
@@ -12,32 +29,160 @@ interface ClinicalSummaryReportProps {
   vitalSigns?: VitalSignsData | null;
 }
 
-const Tag = ({ color, children }: { color: string; children: React.ReactNode }) => {
-  const colors = {
-    red: { bg: "#FED7D7", text: "#9B2C2C" },
-    yellow: { bg: "#FEFCBF", text: "#744210" },
-    green: { bg: "#C6F6D5", text: "#22543D" },
-    gray: { bg: "#EDF2F7", text: "#4A5568" },
-  };
-  const c = colors[color as keyof typeof colors] || colors.gray;
-  return (
-    <span style={{
-      display: "inline-block",
-      fontFamily: "'DM Sans', sans-serif",
-      fontSize: 11,
-      fontWeight: 600,
-      padding: "2px 8px",
-      borderRadius: 4,
-      marginLeft: 6,
-      background: c.bg,
-      color: c.text,
-      verticalAlign: "middle",
-    }}>{children}</span>
-  );
-};
+/* ─── Fonts ────────────────────────────────────────────────────── */
 
-// Modal para mostrar detalles completos de la consulta
-const ConsultationModal = ({
+const serifFont = "'Source Serif 4', Georgia, 'Times New Roman', serif";
+const sansFont = "'DM Sans', system-ui, -apple-system, sans-serif";
+
+/* ─── Section Accent Colors ────────────────────────────────────── */
+
+const sectionAccents = {
+  allergy: { border: 'border-l-red-400', icon: 'text-red-500', bg: 'bg-red-50/40' },
+  diagnosis: { border: 'border-l-blue-400', icon: 'text-blue-500', bg: 'bg-blue-50/30' },
+  medication: { border: 'border-l-amber-400', icon: 'text-amber-500', bg: 'bg-amber-50/30' },
+  vitals: { border: 'border-l-emerald-400', icon: 'text-emerald-500', bg: 'bg-emerald-50/30' },
+  lab: { border: 'border-l-violet-400', icon: 'text-violet-500', bg: 'bg-violet-50/30' },
+  vaccine: { border: 'border-l-teal-400', icon: 'text-teal-500', bg: 'bg-teal-50/30' },
+  orders: { border: 'border-l-orange-400', icon: 'text-orange-500', bg: 'bg-orange-50/30' },
+  history: { border: 'border-l-indigo-400', icon: 'text-indigo-500', bg: 'bg-indigo-50/30' },
+} as const;
+
+/* ─── Section Card Wrapper ─────────────────────────────────────── */
+
+function SectionCard({
+  accent,
+  children
+}: {
+  accent: keyof typeof sectionAccents;
+  children: React.ReactNode;
+}) {
+  const a = sectionAccents[accent];
+  return (
+    <section className={`
+      bg-white rounded-lg border border-gray-200/80 ${a.border} border-l-[3px]
+      shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 md:p-6
+    `}>
+      {children}
+    </section>
+  );
+}
+
+/* ─── Section Header ───────────────────────────────────────────── */
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  count,
+  accent
+}: {
+  icon: React.ElementType;
+  title: string;
+  count?: number;
+  accent: keyof typeof sectionAccents;
+}) {
+  const a = sectionAccents[accent];
+  return (
+    <div className="flex items-center gap-2.5 mb-4">
+      <div className={`p-1.5 rounded-md ${a.bg}`}>
+        <Icon size={16} className={a.icon} strokeWidth={2} />
+      </div>
+      <h2
+        className="text-[17px] font-bold text-gray-900 tracking-[-0.01em] leading-tight"
+        style={{ fontFamily: serifFont }}
+      >
+        {title}
+      </h2>
+      {count !== undefined && count > 0 && (
+        <span className="text-[11px] text-gray-400 font-semibold bg-gray-100 px-1.5 py-0.5 rounded tabular-nums">
+          {count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* ─── Status & Severity Badges ─────────────────────────────────── */
+
+function SeverityBadge({ severity }: { severity: string }) {
+  const s = severity.toLowerCase();
+  const isHigh = s.includes('alta') || s.includes('sever');
+  const isMod = s.includes('moder');
+
+  const colors = isHigh
+    ? 'bg-red-50 text-red-700 ring-red-200'
+    : isMod
+      ? 'bg-amber-50 text-amber-700 ring-amber-200'
+      : 'bg-gray-50 text-gray-600 ring-gray-200';
+
+  return (
+    <span className={`
+      inline-flex items-center gap-1 text-[10.5px] font-semibold tracking-wide uppercase
+      px-2 py-0.5 rounded-full ring-1 ring-inset ${colors}
+    `}>
+      {severity}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase();
+  const isActive = s.includes('activ') || s.includes('confirmad');
+  const isResolved = s.includes('resuel');
+
+  const colors = isActive
+    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+    : isResolved
+      ? 'bg-gray-50 text-gray-500 ring-gray-200'
+      : 'bg-gray-50 text-gray-500 ring-gray-200';
+
+  return (
+    <span className={`
+      inline-flex items-center gap-1 text-[10.5px] font-semibold
+      px-2 py-0.5 rounded-full ring-1 ring-inset ${colors}
+    `}>
+      {status}
+    </span>
+  );
+}
+
+/* ─── Small Helpers ────────────────────────────────────────────── */
+
+function EmptyNote({ text }: { text: string }) {
+  return (
+    <p className="text-[13.5px] text-gray-400 italic leading-relaxed">
+      {text}
+    </p>
+  );
+}
+
+function MetaDate({ date, className = '' }: { date?: string; className?: string }) {
+  if (!date) return null;
+  return (
+    <span className={`text-[11.5px] text-gray-400 tabular-nums ${className}`}>
+      {date}
+    </span>
+  );
+}
+
+/* ─── Vital Sign Mini-Card ─────────────────────────────────────── */
+
+function VitalCard({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
+  return (
+    <div className="bg-gray-50/80 rounded-lg px-4 py-3 border border-gray-100">
+      <div className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+        {label}
+      </div>
+      <div className="text-[18px] font-bold text-gray-900 tabular-nums leading-none">
+        {value}
+        {unit && <span className="text-[12px] text-gray-400 font-medium ml-1">{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Consultation Detail Modal ────────────────────────────────── */
+
+function ConsultationModal({
   consultation,
   isOpen,
   onClose
@@ -45,187 +190,178 @@ const ConsultationModal = ({
   consultation: ConsultationEntry | null;
   isOpen: boolean;
   onClose: () => void;
-}) => {
+}) {
   if (!isOpen || !consultation) return null;
 
-  // Simular datos SOAP basados en la consulta
-  const mockSoapData = {
-    subjective: consultation.patientNote || 'Paciente refiere los síntomas descritos en el resumen de la consulta.',
-    objective: 'Examen físico realizado según protocolo médico estándar.',
-    assessment: consultation.summary || 'Evaluación médica completada.',
-    plan: 'Plan de tratamiento establecido según guías clínicas apropiadas.'
-  };
-
-  const modalStyles = {
-    overlay: {
-      position: 'fixed' as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px'
+  const soapEntries = [
+    {
+      letter: 'S', label: 'Subjetivo',
+      content: consultation.patientNote || 'Paciente refiere los síntomas descritos en el resumen de la consulta.',
+      borderColor: 'border-l-blue-400', labelColor: 'text-blue-600', bgTint: 'bg-blue-50/40',
+      letterBg: 'bg-blue-500'
     },
-    modal: {
-      backgroundColor: '#ffffff',
-      borderRadius: '8px',
-      maxWidth: '800px',
-      width: '100%',
-      maxHeight: '90vh',
-      overflow: 'auto',
-      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-      border: '1px solid #e5e7eb'
+    {
+      letter: 'O', label: 'Objetivo',
+      content: 'Examen físico realizado según protocolo médico estándar.',
+      borderColor: 'border-l-emerald-400', labelColor: 'text-emerald-600', bgTint: 'bg-emerald-50/40',
+      letterBg: 'bg-emerald-500'
     },
-    header: {
-      padding: '20px 24px',
-      borderBottom: '2px solid #e5e7eb',
-      backgroundColor: '#f8fafc'
+    {
+      letter: 'A', label: 'Evaluación',
+      content: consultation.summary || 'Evaluación médica completada.',
+      borderColor: 'border-l-amber-400', labelColor: 'text-amber-600', bgTint: 'bg-amber-50/40',
+      letterBg: 'bg-amber-500'
     },
-    content: {
-      padding: '24px',
-      fontFamily: "'Source Serif 4', Georgia, serif",
-      fontSize: 15,
-      lineHeight: 1.6,
-      color: '#1a1a1a'
-    },
-    closeButton: {
-      position: 'absolute' as const,
-      top: '16px',
-      right: '20px',
-      background: 'none',
-      border: 'none',
-      fontSize: '24px',
-      cursor: 'pointer',
-      color: '#6b7280',
-      padding: '4px',
-      borderRadius: '4px'
-    },
-    sectionHeader: {
-      fontSize: 18,
-      fontWeight: 700,
-      marginBottom: '12px',
-      color: '#374151',
-      borderLeft: '3px solid #6366f1',
-      paddingLeft: '12px'
-    },
-    soapSection: {
-      backgroundColor: '#fefefe',
-      border: '1px solid #e8e8e8',
-      borderRadius: '3px',
-      padding: '12px 16px',
-      margin: '0 0 8px',
-      minHeight: '60px'
-    },
-    soapLabel: {
-      display: 'inline-block',
-      width: '24px',
-      height: '24px',
-      borderRadius: '6px',
-      fontSize: '12px',
-      fontWeight: 'bold',
-      textAlign: 'center' as const,
-      lineHeight: '24px',
-      marginRight: '12px',
-      color: '#ffffff'
+    {
+      letter: 'P', label: 'Plan',
+      content: 'Plan de tratamiento establecido según guías clínicas apropiadas.',
+      borderColor: 'border-l-violet-400', labelColor: 'text-violet-600', bgTint: 'bg-violet-50/40',
+      letterBg: 'bg-violet-500'
     }
-  };
+  ];
 
   return (
-    <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={modalStyles.header}>
-          <button style={modalStyles.closeButton} onClick={onClose}>×</button>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1f2937' }}>
-            📋 Detalle de Consulta Médica
-          </h2>
-          <div style={{ marginTop: '8px', fontSize: 14, color: '#6b7280' }}>
-            <strong>{consultation.type}</strong> • {consultation.date} • {consultation.doctor}
+    <div
+      className="fixed inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center z-[1000] p-5"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl max-w-[720px] w-full max-h-[85vh] overflow-auto shadow-2xl border border-gray-200"
+        onClick={(e) => e.stopPropagation()}
+        style={{ fontFamily: sansFont }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-start justify-between z-10">
+          <div>
+            <h2
+              className="text-[19px] font-bold text-gray-900 tracking-tight"
+              style={{ fontFamily: serifFont }}
+            >
+              Detalle de Consulta
+            </h2>
+            <div className="mt-1.5 flex items-center gap-2 text-[13px] text-gray-500">
+              <span className="font-semibold text-gray-800">{consultation.type}</span>
+              <span className="text-gray-300">·</span>
+              <span>{consultation.date}</span>
+              <span className="text-gray-300">·</span>
+              <span>{consultation.doctor}</span>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X size={18} strokeWidth={2} />
+          </button>
         </div>
 
-        <div style={modalStyles.content}>
-          {/* Nota Clínica SOAP */}
-          <div style={{ marginBottom: '32px' }}>
-            <div style={modalStyles.sectionHeader}>📋 Nota Clínica SOAP</div>
+        {/* Content */}
+        <div className="px-6 py-6 space-y-6">
 
-            <div style={modalStyles.soapSection}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <span style={{ ...modalStyles.soapLabel, backgroundColor: '#3b82f6' }}>S</span>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: '4px', color: '#374151' }}>Subjetivo</div>
-                  <div style={{ color: '#4b5563', fontSize: 14 }}>{mockSoapData.subjective}</div>
-                </div>
-              </div>
+          {/* ── Nota Clínica SOAP ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 border-l-[3px] border-l-slate-300 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <NotebookPen size={15} className="text-slate-400" strokeWidth={1.8} />
+              <h3
+                className="text-[15.5px] font-semibold text-slate-700 tracking-[-0.01em]"
+                style={{ fontFamily: serifFont }}
+              >
+                Nota Clínica SOAP
+              </h3>
             </div>
-
-            <div style={modalStyles.soapSection}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <span style={{ ...modalStyles.soapLabel, backgroundColor: '#10b981' }}>O</span>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: '4px', color: '#374151' }}>Objetivo</div>
-                  <div style={{ color: '#4b5563', fontSize: 14 }}>{mockSoapData.objective}</div>
+            <div className="space-y-2.5">
+              {soapEntries.map(({ letter, label, content, borderColor, labelColor, bgTint, letterBg }) => (
+                <div
+                  key={letter}
+                  className={`rounded-lg ${bgTint} border border-gray-100/80 ${borderColor} border-l-[3px] px-4 py-3`}
+                >
+                  <div className="flex gap-3 items-start">
+                    <span className={`
+                      shrink-0 w-7 h-7 rounded-md text-[12px] font-bold
+                      flex items-center justify-center text-white shadow-sm ${letterBg}
+                    `}>
+                      {letter}
+                    </span>
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <div className={`text-[11px] font-bold uppercase tracking-wider mb-1 ${labelColor}`}>
+                        {label}
+                      </div>
+                      <p className="text-[14px] text-gray-800 leading-relaxed">
+                        {content}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <div style={modalStyles.soapSection}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <span style={{ ...modalStyles.soapLabel, backgroundColor: '#f59e0b' }}>A</span>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: '4px', color: '#374151' }}>Evaluación</div>
-                  <div style={{ color: '#4b5563', fontSize: 14 }}>{mockSoapData.assessment}</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={modalStyles.soapSection}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <span style={{ ...modalStyles.soapLabel, backgroundColor: '#8b5cf6' }}>P</span>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: '4px', color: '#374151' }}>Plan</div>
-                  <div style={{ color: '#4b5563', fontSize: 14 }}>{mockSoapData.plan}</div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Resumen de la Consulta */}
-          <div style={{ marginBottom: '32px' }}>
-            <div style={{ ...modalStyles.sectionHeader, borderLeftColor: '#0891b2' }}>📊 Resumen de la Consulta</div>
-            <div style={{ color: '#4b5563', lineHeight: 1.6 }}>
-              {consultation.summary}
+          {/* ── Resumen de la Consulta ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 border-l-[3px] border-l-slate-300 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <FileBarChart size={15} className="text-slate-400" strokeWidth={1.8} />
+              <h3
+                className="text-[15.5px] font-semibold text-slate-700 tracking-[-0.01em]"
+                style={{ fontFamily: serifFont }}
+              >
+                Resumen de la Consulta
+              </h3>
+            </div>
+            <div className="bg-gray-50/60 rounded-lg border border-gray-100/80 px-4 py-3.5">
+              <p className="text-[14px] text-gray-700 leading-[1.7]">
+                {consultation.summary}
+              </p>
             </div>
           </div>
 
-          {/* Educación y Recomendaciones */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ ...modalStyles.sectionHeader, borderLeftColor: '#0ea5e9' }}>💡 Educación y Recomendaciones</div>
-            <div style={{ color: '#4b5563', lineHeight: 1.6 }}>
-              • Seguir las indicaciones médicas establecidas durante la consulta<br/>
-              • Mantener hábitos de vida saludables<br/>
-              • Acudir a consulta de seguimiento según programación<br/>
-              • Contactar al médico tratante ante cualquier inquietud o complicación
+          {/* ── Educación y Recomendaciones ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 border-l-[3px] border-l-slate-300 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <BookOpen size={15} className="text-slate-400" strokeWidth={1.8} />
+              <h3
+                className="text-[15.5px] font-semibold text-slate-700 tracking-[-0.01em]"
+                style={{ fontFamily: serifFont }}
+              >
+                Educación y Recomendaciones
+              </h3>
             </div>
+            <ul className="space-y-2.5">
+              {[
+                'Seguir las indicaciones médicas establecidas durante la consulta',
+                'Mantener hábitos de vida saludables',
+                'Acudir a consulta de seguimiento según programación',
+                'Contactar al médico tratante ante cualquier inquietud o complicación'
+              ].map((text, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <CircleDot size={14} className="text-slate-400 shrink-0 mt-0.5" strokeWidth={1.8} />
+                  <span className="text-[14px] text-gray-700 leading-relaxed">{text}</span>
+                </li>
+              ))}
+            </ul>
           </div>
+
         </div>
       </div>
     </div>
   );
-};
+}
+
+/* ─── Main Component ───────────────────────────────────────────── */
 
 export function ClinicalSummaryReport({ patientRecord, ipsData, vitalSigns }: ClinicalSummaryReportProps) {
-  // Estados para el modal y la vista de consultas
   const [selectedConsultation, setSelectedConsultation] = useState<ConsultationEntry | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showAllConsultations, setShowAllConsultations] = useState(false);
 
-  // Funciones del modal
-  const openConsultationModal = (consultation: ConsultationEntry) => {
-    setSelectedConsultation(consultation);
+  const validConditions = ipsData.conditions?.filter(dx =>
+    dx.name &&
+    dx.name !== 'Condición no especificada' &&
+    dx.name.trim() !== '' &&
+    !dx.name.toLowerCase().includes('no especificad')
+  ) || [];
+
+  const openConsultationModal = (c: ConsultationEntry) => {
+    setSelectedConsultation(c);
     setShowModal(true);
   };
 
@@ -234,629 +370,347 @@ export function ClinicalSummaryReport({ patientRecord, ipsData, vitalSigns }: Cl
     setSelectedConsultation(null);
   };
 
-  const patient = patientRecord;
-  const abnormalLabs = ipsData.labResults?.filter(r => r.flag && r.flag !== "Normal") || [];
-  const normalLabs = ipsData.labResults?.filter(r => !r.flag || r.flag === "Normal") || [];
-
-  // Filter out empty or placeholder conditions
-  const validConditions = ipsData.conditions?.filter(dx =>
-    dx.name &&
-    dx.name !== "Condición no especificada" &&
-    dx.name.trim() !== "" &&
-    !dx.name.toLowerCase().includes("no especificad")
-  ) || [];
-
-  // Función para generar resumen narrativo automático
-  const generateClinicalNarrative = (): string => {
-    const parts: string[] = [];
-
-    // Datos demográficos básicos
-    const demographics = `Paciente ${patient?.gender?.toLowerCase() || 'no especificado'} de ${patient?.age || 'edad no disponible'} años`;
-    parts.push(demographics);
-
-    // Diagnósticos principales
-    if (validConditions.length > 0) {
-      const activeConditions = validConditions.filter(c =>
-        c.status?.toLowerCase().includes('activ') || !c.status?.toLowerCase().includes('resuel')
-      );
-      if (activeConditions.length > 0) {
-        const conditionsList = activeConditions.slice(0, 3).map(c => c.name).join(', ');
-        const moreConditions = activeConditions.length > 3 ? ` y ${activeConditions.length - 3} diagnóstico${activeConditions.length - 3 > 1 ? 's' : ''} adicional${activeConditions.length - 3 > 1 ? 'es' : ''}` : '';
-        parts.push(`con ${conditionsList}${moreConditions}`);
-      }
-    } else {
-      parts.push('sin diagnósticos activos documentados');
-    }
-
-    // Alergias
-    if (ipsData.allergies && ipsData.allergies.length > 0) {
-      const allergiesList = ipsData.allergies.map(a => a.name).join(', ');
-      parts.push(`Alergias conocidas: ${allergiesList}`);
-    } else {
-      parts.push('Sin alergias conocidas documentadas');
-    }
-
-    // Medicamentos por categoría
-    if (ipsData.medications && ipsData.medications.length > 0) {
-      parts.push(`Tratamiento activo con ${ipsData.medications.length} medicamento${ipsData.medications.length > 1 ? 's' : ''}`);
-    } else {
-      parts.push('Sin medicamentos activos registrados');
-    }
-
-    // Laboratorio anormal
-    if (abnormalLabs.length > 0) {
-      const mostRecentDate = abnormalLabs[0]?.date || 'fecha no disponible';
-      parts.push(`Se identificaron ${abnormalLabs.length} valor${abnormalLabs.length > 1 ? 'es' : ''} de laboratorio fuera de rango en resultados recientes`);
-    }
-
-    return parts.join('. ') + '.';
-  };
-
-  // Función para determinar estado de sección (confirmado vs no documentado)
-  const getSectionStatus = (hasData: boolean, isRequired: boolean) => {
-    if (hasData) return 'has_data';
-    return isRequired ? 'not_documented' : 'confirmed_empty';
-  };
-
-  const s = {
-    p: { margin: "0 0 14px", color: "#333", lineHeight: 1.75 },
-    h1: { fontSize: 24, fontWeight: 700, margin: "0 0 8px", color: "#111" },
-    h2: { fontSize: 19, fontWeight: 700, margin: "32px 0 12px", color: "#111" },
-    h3: { fontSize: 16, fontWeight: 700, margin: "24px 0 8px", color: "#333" },
-    hr: { border: "none", borderTop: "2px solid #e8e8e8", margin: "24px 0" },
-    th: {
-      textAlign: "left" as const, padding: "10px 14px", borderBottom: "2px solid #e2e2e2",
-      fontWeight: 600, fontSize: 13, color: "#555",
-      fontFamily: "'DM Sans', sans-serif", background: "#fafafa",
-    },
-    td: { padding: "9px 14px", borderBottom: "1px solid #f0f0f0", verticalAlign: "top" as const, color: "#333" },
-    table: { width: "100%", borderCollapse: "collapse" as const, margin: "12px 0 20px", fontSize: 14 },
-    bullet: { margin: "0 0 7px", paddingLeft: 4, color: "#333", fontSize: 14 },
-    narrative: {
-      fontSize: 16,
-      lineHeight: 1.6,
-      color: "#2d3748",
-      fontWeight: 500,
-      margin: "0 0 24px",
-      padding: "16px 20px",
-      background: "#f8fafc",
-      border: "1px solid #e2e8f0",
-      borderLeft: "4px solid #4299e1",
-      borderRadius: "4px"
-    }
-  };
-
   return (
-    <div className="w-full min-h-screen bg-white">
-      <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <article className="w-full min-h-screen bg-[#f4f5f7]">
+      <link
+        href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
 
-      <div className="w-full" style={{
-        fontFamily: "'Source Serif 4', Georgia, serif",
-        fontSize: 15,
-        lineHeight: 1.7,
-        color: "#1a1a1a",
-        padding: "16px 20px 40px",
-      }}>
+      <div
+        className="max-w-3xl mx-auto px-4 md:px-6 py-5 pb-24 space-y-4"
+        style={{ fontFamily: sansFont }}
+      >
 
-
-        {/* Alergias */}
-        <div style={{
-          borderLeft: "3px solid #ea580c",
-          paddingLeft: "16px",
-          margin: "24px 0"
-        }}>
-          <h2 style={{ ...s.h2, color: "#ea580c", marginBottom: "12px" }}>
-            ⚠️ Alergias y Reacciones Adversas
-          </h2>
+        {/* ── Alergias y Reacciones Adversas ── */}
+        <SectionCard accent="allergy">
+          <SectionHeader icon={AlertCircle} title="Alergias y Reacciones Adversas" count={ipsData.allergies?.length} accent="allergy" />
           {ipsData.allergies && ipsData.allergies.length > 0 ? (
-            <>
-              <p style={s.p}>
-                El paciente presenta las siguientes alergias conocidas:
-              </p>
-              {ipsData.allergies.map((allergy, index) => (
-                <div key={index} style={s.bullet}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                    <strong>{allergy.name}</strong>
-                    {allergy.severity && (
-                      <span style={{
-                        background: allergy.severity.toLowerCase().includes('alta') ? "#fee2e2" : "#fef3c7",
-                        color: allergy.severity.toLowerCase().includes('alta') ? "#dc2626" : "#d97706",
-                        padding: "1px 6px",
-                        borderRadius: "8px",
-                        fontSize: "10px",
-                        fontWeight: "600"
-                      }}>
-                        {allergy.severity}
-                      </span>
+            <div className="space-y-3">
+              {ipsData.allergies.map((allergy, i) => (
+                <div key={i} className="flex items-start justify-between gap-3 py-2 border-b border-gray-100/80 last:border-0 last:pb-0">
+                  <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-[14.5px] font-bold text-gray-900">{allergy.name}</span>
+                      {allergy.severity && <SeverityBadge severity={allergy.severity} />}
+                    </div>
+                    {allergy.notes && (
+                      <p className="mt-1.5 text-[13px] text-gray-500 italic leading-relaxed">{allergy.notes}</p>
                     )}
                   </div>
-                  {allergy.date && (
-                    <div style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>
-                      Registrada: {allergy.date}
-                    </div>
-                  )}
-                  {allergy.notes && (
-                    <div style={{ fontSize: 13, color: "#6b7280", fontStyle: 'italic', marginTop: 4 }}>
-                      {allergy.notes}
-                    </div>
-                  )}
+                  {allergy.date && <MetaDate date={allergy.date} className="shrink-0 pt-1" />}
                 </div>
               ))}
-            </>
+            </div>
           ) : (
-            <p style={s.p}>
-              No hay alergias conocidas documentadas en el expediente médico.
-            </p>
+            <EmptyNote text="No hay alergias conocidas documentadas en el expediente." />
           )}
-        </div>
+        </SectionCard>
 
-        <hr style={s.hr} />
-
-        {/* Diagnósticos */}
-        <div style={{
-          borderLeft: "3px solid #0284c7",
-          paddingLeft: "16px",
-          margin: "24px 0"
-        }}>
-          <h2 style={{ ...s.h2, color: "#0284c7", marginBottom: "12px" }}>
-            🩺 Diagnósticos Activos
-          </h2>
+        {/* ── Diagnósticos Activos ── */}
+        <SectionCard accent="diagnosis">
+          <SectionHeader icon={Stethoscope} title="Diagnósticos Activos" count={validConditions.length} accent="diagnosis" />
           {validConditions.length > 0 ? (
-            <>
-              <p style={s.p}>
-                Los siguientes diagnósticos se encuentran activos en el expediente:
-              </p>
+            <div className="space-y-3">
               {validConditions.map((dx, i) => (
-                <div key={i} style={s.bullet}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                    <strong>{dx.name}</strong>
-                    <span style={{
-                      background: dx.status?.toLowerCase().includes('activ') ? "#f0fdf4" : "#f9fafb",
-                      color: dx.status?.toLowerCase().includes('activ') ? "#166534" : "#6b7280",
-                      padding: "1px 6px",
-                      borderRadius: "8px",
-                      fontSize: "10px",
-                      fontWeight: "600"
-                    }}>
-                      {dx.status || 'Estado no especificado'}
-                    </span>
+                <div key={i} className="flex items-start justify-between gap-3 py-2 border-b border-gray-100/80 last:border-0 last:pb-0">
+                  <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-[14.5px] font-bold text-gray-900">{dx.name}</span>
+                      <StatusBadge status={dx.status || 'No especificado'} />
+                    </div>
+                    {dx.notes && (
+                      <p className="mt-1.5 text-[13px] text-gray-500 italic leading-relaxed">{dx.notes}</p>
+                    )}
                   </div>
-                  {dx.date && (
-                    <div style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>
-                      Registrado: {dx.date}
-                    </div>
-                  )}
-                  {dx.notes && (
-                    <div style={{ fontSize: 13, color: "#6b7280", fontStyle: 'italic', marginTop: 4 }}>
-                      {dx.notes}
-                    </div>
-                  )}
+                  {dx.date && <MetaDate date={dx.date} className="shrink-0 pt-1" />}
                 </div>
               ))}
-            </>
+            </div>
           ) : (
-            <p style={s.p}>
-              No hay diagnósticos activos registrados en el expediente médico en este momento.
-            </p>
+            <EmptyNote text="No hay diagnósticos activos registrados en el expediente." />
           )}
-        </div>
+        </SectionCard>
 
-        <hr style={s.hr} />
-
-        {/* Medicamentos */}
-        <div style={{
-          borderLeft: "3px solid #f59e0b",
-          paddingLeft: "16px",
-          margin: "24px 0"
-        }}>
-          <h2 style={{ ...s.h2, color: "#f59e0b", marginBottom: "12px" }}>
-            💊 Medicamentos Activos
-          </h2>
+        {/* ── Medicamentos Activos ── */}
+        <SectionCard accent="medication">
+          <SectionHeader icon={Pill} title="Medicamentos Activos" count={ipsData.medications?.length} accent="medication" />
           {ipsData.medications && ipsData.medications.length > 0 ? (
-            <>
-              <p style={s.p}>
-                Tratamiento farmacológico actual registrado:
-              </p>
-              <table style={s.table}>
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-[13.5px]">
                 <thead>
-                  <tr>
-                    <th style={s.th}>Medicamento</th>
-                    <th style={s.th}>Posología</th>
-                    <th style={s.th}>Inicio</th>
-                    <th style={s.th}>Estado</th>
+                  <tr className="border-b-2 border-gray-200/80">
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">
+                      Medicamento
+                    </th>
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">
+                      Posología
+                    </th>
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                      Inicio
+                    </th>
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">
+                      Estado
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {ipsData.medications.map((m, i) => (
-                    <tr key={i}>
-                      <td style={{ ...s.td, fontWeight: 600 }}>{m.name}</td>
-                      <td style={s.td}>{m.dose || m.frequency || 'Dosis no especificada'}</td>
-                      <td style={{ ...s.td, color: "#6b7280", fontSize: 13 }}>
-                        {m.date || 'Fecha no disponible'}
+                    <tr key={i} className="border-b border-gray-100/80 last:border-0 hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3 px-2">
+                        <span className="font-semibold text-gray-900">{m.name}</span>
+                        {(m as any).warning && (
+                          <div className="mt-1 text-[11px] text-amber-600 font-semibold bg-amber-50 inline-block px-1.5 py-0.5 rounded">
+                            {(m as any).warning}
+                          </div>
+                        )}
                       </td>
-                      <td style={s.td}>
-                        <span style={{
-                          background: "#f0fdf4",
-                          color: "#166534",
-                          padding: "1px 6px",
-                          borderRadius: "8px",
-                          fontSize: "10px",
-                          fontWeight: "600"
-                        }}>
-                          Activo
-                        </span>
+                      <td className="py-3 px-2 text-gray-600 font-medium">
+                        {m.dose || m.frequency || '—'}
+                      </td>
+                      <td className="py-3 px-2 text-gray-400 text-[12.5px] hidden sm:table-cell tabular-nums">
+                        {m.date || '—'}
+                      </td>
+                      <td className="py-3 px-2">
+                        <StatusBadge status={m.status || 'Activo'} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </>
+            </div>
           ) : (
-            <p style={s.p}>
-              No hay medicamentos activos registrados en el sistema.
-            </p>
+            <EmptyNote text="No hay medicamentos activos registrados." />
           )}
-        </div>
+        </SectionCard>
 
-        <hr style={s.hr} />
-
-        {/* Signos Vitales */}
-        <div style={{
-          borderLeft: "3px solid #059669",
-          paddingLeft: "16px",
-          margin: "24px 0"
-        }}>
-          <h2 style={{ ...s.h2, color: "#059669", marginBottom: "12px" }}>
-            💓 Signos Vitales
-          </h2>
+        {/* ── Signos Vitales ── */}
+        <SectionCard accent="vitals">
+          <SectionHeader icon={HeartPulse} title="Signos Vitales" accent="vitals" />
           {vitalSigns ? (
             <>
-              <p style={s.p}>
-                Valores registrados en la consulta actual:
-              </p>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "12px",
-                marginTop: "16px"
-              }}>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {vitalSigns.bloodPressure && (
-                  <div style={{ padding: "8px 0" }}>
-                    <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 2 }}>
-                      Presión Arterial
-                    </div>
-                    <div style={{ fontWeight: "600", fontSize: 16 }}>{vitalSigns.bloodPressure}</div>
-                  </div>
+                  <VitalCard label="Presión Arterial" value={vitalSigns.bloodPressure} />
                 )}
                 {vitalSigns.heartRate && (
-                  <div style={{ padding: "8px 0" }}>
-                    <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 2 }}>
-                      Frecuencia Cardíaca
-                    </div>
-                    <div style={{ fontWeight: "600", fontSize: 16 }}>{vitalSigns.heartRate} bpm</div>
-                  </div>
+                  <VitalCard label="Frecuencia Cardíaca" value={vitalSigns.heartRate} unit="bpm" />
                 )}
                 {vitalSigns.temperature && (
-                  <div style={{ padding: "8px 0" }}>
-                    <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 2 }}>
-                      Temperatura
-                    </div>
-                    <div style={{ fontWeight: "600", fontSize: 16 }}>{vitalSigns.temperature}°C</div>
-                  </div>
+                  <VitalCard label="Temperatura" value={vitalSigns.temperature} unit="°C" />
                 )}
                 {vitalSigns.oxygenSaturation && (
-                  <div style={{ padding: "8px 0" }}>
-                    <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 2 }}>
-                      Saturación O₂
-                    </div>
-                    <div style={{ fontWeight: "600", fontSize: 16 }}>{vitalSigns.oxygenSaturation}%</div>
-                  </div>
+                  <VitalCard label="Saturación O₂" value={vitalSigns.oxygenSaturation} unit="%" />
+                )}
+                {vitalSigns.weight && (
+                  <VitalCard label="Peso" value={vitalSigns.weight} unit="kg" />
+                )}
+                {vitalSigns.height && (
+                  <VitalCard label="Talla" value={vitalSigns.height} unit="cm" />
+                )}
+                {vitalSigns.respiratoryRate && (
+                  <VitalCard label="Frec. Respiratoria" value={vitalSigns.respiratoryRate} unit="rpm" />
+                )}
+                {vitalSigns.bmi && (
+                  <VitalCard label="IMC" value={vitalSigns.bmi} />
                 )}
               </div>
+              {vitalSigns.measurementDate && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <MetaDate date={`Registrados: ${vitalSigns.measurementDate}`} />
+                </div>
+              )}
             </>
           ) : (
-            <p style={s.p}>
-              Los signos vitales no han sido registrados para esta consulta.
-            </p>
+            <EmptyNote text="Los signos vitales no han sido registrados para esta consulta." />
           )}
-        </div>
+        </SectionCard>
 
-        <hr style={s.hr} />
-
-        {/* Resultados de Laboratorio */}
-        <div style={{
-          borderLeft: "3px solid #db2777",
-          paddingLeft: "16px",
-          margin: "24px 0"
-        }}>
-          <h2 style={{ ...s.h2, color: "#db2777", marginBottom: "12px" }}>
-            🧪 Resultados de Laboratorio
-          </h2>
+        {/* ── Resultados de Laboratorio ── */}
+        <SectionCard accent="lab">
+          <SectionHeader icon={FlaskConical} title="Resultados de Laboratorio" count={ipsData.labResults?.length} accent="lab" />
           {ipsData.labResults && ipsData.labResults.length > 0 ? (
-            <>
-              <p style={s.p}>
-                Resultados de laboratorio más recientes:
-              </p>
-              <table style={s.table}>
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-[13.5px]">
                 <thead>
-                  <tr>
-                    <th style={s.th}>Prueba</th>
-                    <th style={s.th}>Resultado</th>
-                    <th style={s.th}>Rango de Referencia</th>
-                    <th style={s.th}>Estado</th>
+                  <tr className="border-b-2 border-gray-200/80">
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">
+                      Prueba
+                    </th>
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">
+                      Resultado
+                    </th>
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                      Referencia
+                    </th>
+                    <th className="text-left py-2.5 px-2 text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">
+                      Estado
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ipsData.labResults.map((r, i) => (
-                    <tr key={i}>
-                      <td style={{ ...s.td, fontWeight: 500 }}>{r.name}</td>
-                      <td style={{
-                        ...s.td,
-                        fontWeight: 600,
-                        color: r.flag && r.flag !== "Normal" ? "#d97706" : "#059669"
-                      }}>
-                        {r.value} {r.unit || ''}
-                      </td>
-                      <td style={{ ...s.td, color: "#6b7280", fontSize: 12 }}>{r.referenceRange || 'No disponible'}</td>
-                      <td style={s.td}>
-                        <span style={{
-                          background: r.flag && r.flag !== "Normal" ? "#fef3c7" : "#f0fdf4",
-                          color: r.flag && r.flag !== "Normal" ? "#d97706" : "#166534",
-                          padding: "1px 6px",
-                          borderRadius: "8px",
-                          fontSize: "10px",
-                          fontWeight: "600"
-                        }}>
-                          {r.flag || "Normal"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {ipsData.labResults.map((r, i) => {
+                    const isAbnormal = r.flag && r.flag !== 'Normal';
+                    return (
+                      <tr
+                        key={i}
+                        className={`
+                          border-b border-gray-100/80 last:border-0
+                          ${isAbnormal ? 'bg-amber-50/40' : 'hover:bg-gray-50/50'}
+                          transition-colors
+                        `}
+                      >
+                        <td className="py-3 px-2 font-semibold text-gray-800">
+                          {r.name}
+                        </td>
+                        <td className={`py-3 px-2 font-bold tabular-nums ${isAbnormal ? 'text-amber-700' : 'text-gray-900'}`}>
+                          {r.value}
+                          {r.unit && <span className="text-gray-400 font-normal text-[11.5px] ml-1">{r.unit}</span>}
+                        </td>
+                        <td className="py-3 px-2 text-gray-400 text-[12.5px] hidden sm:table-cell">
+                          {r.referenceRange || '—'}
+                        </td>
+                        <td className="py-3 px-2">
+                          {isAbnormal ? (
+                            <span className="inline-flex items-center text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full ring-1 ring-inset ring-amber-200">
+                              {r.flag}
+                            </span>
+                          ) : (
+                            <span className="text-[10.5px] text-gray-400 font-medium">Normal</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            </>
+            </div>
           ) : (
-            <p style={s.p}>
-              No hay resultados de laboratorio disponibles.
-            </p>
+            <EmptyNote text="No hay resultados de laboratorio disponibles." />
           )}
-        </div>
+        </SectionCard>
 
-        <hr style={s.hr} />
-
-        {/* Inmunizaciones */}
-        <div style={{
-          borderLeft: "3px solid #10b981",
-          paddingLeft: "16px",
-          margin: "24px 0"
-        }}>
-          <h2 style={{ ...s.h2, color: "#10b981", marginBottom: "12px" }}>
-            💉 Historial de Vacunación
-          </h2>
+        {/* ── Historial de Vacunación ── */}
+        <SectionCard accent="vaccine">
+          <SectionHeader icon={Syringe} title="Historial de Vacunación" count={ipsData.vaccines?.length} accent="vaccine" />
           {ipsData.vaccines && ipsData.vaccines.length > 0 ? (
-            <>
-              <p style={s.p}>
-                Registro de inmunizaciones aplicadas:
-              </p>
-              <table style={s.table}>
-                <thead>
-                  <tr>
-                    <th style={s.th}>Vacuna</th>
-                    <th style={s.th}>Fecha de Aplicación</th>
-                    <th style={s.th}>Sitio de Aplicación</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ipsData.vaccines.map((v, i) => (
-                    <tr key={i}>
-                      <td style={{ ...s.td, fontWeight: 500 }}>{v.name}</td>
-                      <td style={{ ...s.td, color: "#6b7280", fontSize: 13 }}>
-                        {v.date || 'Fecha no disponible'}
-                      </td>
-                      <td style={{ ...s.td, color: "#6b7280", fontSize: 13 }}>
-                        {v.site || 'No especificado'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+            <div className="space-y-0">
+              {ipsData.vaccines.map((v, i) => (
+                <div key={i} className="flex items-center justify-between gap-4 py-2.5 border-b border-gray-100/80 last:border-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px] font-semibold text-gray-800">{v.name}</span>
+                    {v.doseNumber && (
+                      <span className="text-[10.5px] text-gray-400 font-medium bg-gray-100 px-1.5 py-0.5 rounded">
+                        Dosis {v.doseNumber}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {v.site && (
+                      <span className="text-[12px] text-gray-400 hidden sm:inline">{v.site}</span>
+                    )}
+                    <MetaDate date={v.date} />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            <p style={s.p}>
-              No hay registro de inmunizaciones en el expediente.
-            </p>
+            <EmptyNote text="No hay registro de inmunizaciones en el expediente." />
           )}
-        </div>
+        </SectionCard>
 
-        <hr style={s.hr} />
-
-        {/* Órdenes Médicas */}
+        {/* ── Órdenes Médicas Pendientes ── */}
         {ipsData.labOrders && ipsData.labOrders.length > 0 && (
-          <>
-            <h2 style={s.h2}>Órdenes Médicas Pendientes</h2>
-            <p style={s.p}>
-              Las siguientes órdenes médicas están pendientes de ejecución:
-            </p>
-            {ipsData.labOrders.map((o, i) => (
-              <div key={i} style={s.bullet}>
-                <strong>{o.name}</strong>
-                {o.date && ` - Solicitada: ${o.date}`}
-                {o.status && ` • Estado: ${o.status}`}
-              </div>
-            ))}
-            <hr style={s.hr} />
-          </>
+          <SectionCard accent="orders">
+            <SectionHeader icon={ClipboardList} title="Órdenes Médicas Pendientes" count={ipsData.labOrders.length} accent="orders" />
+            <div className="space-y-0">
+              {ipsData.labOrders.map((o, i) => (
+                <div key={i} className="flex items-center justify-between gap-4 py-2.5 border-b border-gray-100/80 last:border-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[14px] font-semibold text-gray-800">{o.name}</span>
+                    {o.status && <StatusBadge status={o.status} />}
+                  </div>
+                  <MetaDate date={o.date} />
+                </div>
+              ))}
+            </div>
+          </SectionCard>
         )}
 
-        {/* Historial de Consultas */}
+        {/* ── Historial de Consultas ── */}
         {ipsData.encounters && ipsData.encounters.length > 0 && (
-          <div style={{
-            borderLeft: "3px solid #7c3aed",
-            paddingLeft: "16px",
-            margin: "24px 0"
-          }}>
-            <h2 style={{ ...s.h2, color: "#7c3aed", marginBottom: "12px" }}>
-              📋 Historial de Consultas
-            </h2>
-            <p style={s.p}>
-              {showAllConsultations
-                ? `Todas las consultas médicas del paciente (${ipsData.encounters.length} registros):`
-                : `Últimas ${Math.min(ipsData.encounters.length, 6)} consultas médicas del paciente:`
-              }
-            </p>
+          <SectionCard accent="history">
+            <SectionHeader icon={Clock} title="Historial de Consultas" count={ipsData.encounters.length} accent="history" />
 
-            <div style={{ marginTop: "16px" }}>
+            <div className="space-y-0">
               {(showAllConsultations ? ipsData.encounters : ipsData.encounters.slice(0, 6)).map((encounter, i) => (
-                <div key={i} style={{
-                  ...s.bullet,
-                  borderBottom: "1px solid #f1f5f9",
-                  paddingBottom: "12px",
-                  marginBottom: "12px",
-                  cursor: "pointer"
-                }}
+                <div
+                  key={i}
+                  className="group py-3.5 border-b border-gray-100/80 last:border-0 cursor-pointer hover:bg-indigo-50/30 -mx-2 px-2 rounded-md transition-colors duration-150"
                   onClick={() => openConsultationModal(encounter)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f8fafc';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
                 >
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: "6px"
-                  }}>
-                    <div>
-                      <strong style={{ color: "#1e293b" }}>
-                        {encounter.type || 'Consulta Médica'}
-                      </strong>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14px] font-bold text-gray-900">
+                          {encounter.type || 'Consulta Médica'}
+                        </span>
+                      </div>
                       {encounter.doctor && (
-                        <div style={{
-                          color: "#64748b",
-                          fontSize: 13,
-                          marginTop: 2
-                        }}>
-                          Dr. {encounter.doctor}
+                        <div className="text-[12.5px] text-gray-500 mt-0.5 font-medium">
+                          {encounter.doctor}
                         </div>
                       )}
+                      {encounter.summary && (
+                        <p className="mt-1.5 text-[13px] text-gray-500 leading-relaxed line-clamp-2">
+                          {encounter.summary}
+                        </p>
+                      )}
+                      {encounter.patientNote && (
+                        <p className="mt-1 text-[12px] text-indigo-500/80 italic leading-relaxed font-medium">
+                          Nota del paciente: {encounter.patientNote.length > 80
+                            ? `${encounter.patientNote.substring(0, 80)}...`
+                            : encounter.patientNote
+                          }
+                        </p>
+                      )}
                     </div>
-                    <div style={{
-                      color: "#64748b",
-                      fontSize: 12,
-                      textAlign: "right"
-                    }}>
-                      📅 {encounter.date}
+                    <div className="shrink-0 flex items-center gap-2 pt-0.5">
+                      <MetaDate date={encounter.date} />
+                      <ArrowRight
+                        size={14}
+                        className="text-gray-300 group-hover:text-indigo-400 transition-colors"
+                        strokeWidth={2}
+                      />
                     </div>
-                  </div>
-
-                  {encounter.summary && (
-                    <div style={{
-                      color: "#64748b",
-                      fontSize: 13,
-                      fontStyle: 'italic',
-                      marginTop: 4,
-                      lineHeight: 1.4
-                    }}>
-                      {encounter.summary.length > 100
-                        ? `${encounter.summary.substring(0, 100)}...`
-                        : encounter.summary
-                      }
-                    </div>
-                  )}
-
-                  {encounter.patientNote && (
-                    <div style={{
-                      color: "#7c3aed",
-                      fontSize: 12,
-                      marginTop: 4,
-                      fontWeight: 500
-                    }}>
-                      💬 Nota del paciente: {encounter.patientNote.length > 80
-                        ? `${encounter.patientNote.substring(0, 80)}...`
-                        : encounter.patientNote
-                      }
-                    </div>
-                  )}
-
-                  <div style={{
-                    marginTop: "8px",
-                    fontSize: 11,
-                    color: "#94a3b8",
-                    fontStyle: "italic"
-                  }}>
-                    👆 Haga clic para ver detalles completos
                   </div>
                 </div>
               ))}
             </div>
 
             {ipsData.encounters.length > 6 && (
-              <div style={{
-                marginTop: "16px",
-                textAlign: "center" as const,
-                padding: "12px",
-                background: "#f8fafc",
-                borderRadius: "4px",
-                border: "1px solid #e2e8f0"
-              }}>
-                {!showAllConsultations ? (
-                  <button
-                    onClick={() => setShowAllConsultations(true)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#7c3aed",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      textDecoration: "underline"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#5b21b6";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "#7c3aed";
-                    }}
-                  >
-                    📊 Ver todas las consultas ({ipsData.encounters.length} total)
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShowAllConsultations(false)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#7c3aed",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      textDecoration: "underline"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#5b21b6";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "#7c3aed";
-                    }}
-                  >
-                    📋 Mostrar solo las últimas 6 consultas
-                  </button>
-                )}
+              <div className="mt-4 pt-3 border-t border-gray-100 text-center">
+                <button
+                  onClick={() => setShowAllConsultations(!showAllConsultations)}
+                  className="text-[13px] font-semibold text-indigo-600 hover:text-indigo-700 transition-colors duration-150"
+                >
+                  {showAllConsultations
+                    ? 'Mostrar menos'
+                    : `Ver todas las consultas (${ipsData.encounters.length})`
+                  }
+                </button>
               </div>
             )}
-          </div>
+          </SectionCard>
         )}
-
-        {/* Modal de detalles de consulta */}
-        <ConsultationModal
-          consultation={selectedConsultation}
-          isOpen={showModal}
-          onClose={closeConsultationModal}
-        />
-
       </div>
-    </div>
+
+      {/* Consultation Detail Modal */}
+      <ConsultationModal
+        consultation={selectedConsultation}
+        isOpen={showModal}
+        onClose={closeConsultationModal}
+      />
+    </article>
   );
 }

@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "altea-emr"
+  },
+  "targets": {
+    "altea-emr": {
+      "hosting": {
+        "altiaapp-emr": [
+          "altiaapp-emr"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

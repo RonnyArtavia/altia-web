@@ -13,14 +13,20 @@ import {
   AlertTriangle,
   X,
   Check,
-  Lightbulb,
   HelpCircle,
   CheckCircle,
   Mail,
   Sparkles,
   AlertCircle,
   Info,
-  Trash2
+  Trash2,
+  NotebookPen,
+  FileBarChart,
+  BookOpen,
+  FlaskConical,
+  Activity,
+  ClipboardList,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -470,13 +476,16 @@ export function ClinicalSnapshot({
 
         {/* Nota Clínica SOAP */}
         <div style={{
-          borderLeft: "3px solid #6366f1",
+          borderLeft: "3px solid #94a3b8",
           paddingLeft: "16px",
           margin: "24px 0"
         }}>
-          <h2 style={{ ...s.h2, color: "#6366f1", marginBottom: "12px" }}>
-            📋 Nota Clínica SOAP
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+            <NotebookPen size={15} color="#64748b" strokeWidth={1.8} />
+            <h2 style={{ ...s.h2, color: "#475569", margin: 0 }}>
+              Nota Clínica SOAP
+            </h2>
+          </div>
 
           <div style={s.soapSection}>
             <SoapMiniRow
@@ -528,48 +537,42 @@ export function ClinicalSnapshot({
         {/* Resumen de la Consulta */}
         {totalItems > 0 && (
           <div style={{
-            borderLeft: "3px solid #0891b2",
+            borderLeft: "3px solid #94a3b8",
             paddingLeft: "16px",
             margin: "24px 0"
           }}>
-            <h2 style={{ ...s.h2, color: "#0891b2", marginBottom: "20px" }}>
-              📊 Resumen de la Consulta
-            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
+              <FileBarChart size={15} color="#64748b" strokeWidth={1.8} />
+              <h2 style={{ ...s.h2, color: "#475569", margin: 0 }}>
+                Resumen de la Consulta
+              </h2>
+            </div>
 
             <div style={{ display: "grid", gap: "20px" }}>
               {/* Diagnósticos Card */}
               {groupedFHIR.conditions && groupedFHIR.conditions.length > 0 && (
                 <div style={{
-                  background: "linear-gradient(135deg, #fef7f0 0%, #ffffff 100%)",
-                  border: "1px solid #fed7aa",
-                  borderRadius: "16px",
-                  padding: "24px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                  borderLeft: "5px solid #ea580c"
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                  borderLeft: "3px solid #94a3b8"
                 }}>
                   <div style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "20px",
-                    paddingBottom: "12px",
-                    borderBottom: "2px solid #fed7aa"
+                    gap: "8px",
+                    marginBottom: "16px",
+                    paddingBottom: "10px",
+                    borderBottom: "1px solid #f1f5f9"
                   }}>
-                    <div style={{
-                      background: "linear-gradient(135deg, #ea580c 0%, #f97316 100%)",
-                      borderRadius: "12px",
-                      padding: "8px",
-                      color: "white",
-                      fontSize: "18px",
-                      boxShadow: "0 2px 4px rgba(234, 88, 12, 0.3)"
-                    }}>
-                      🏥
-                    </div>
+                    <Stethoscope size={15} color="#64748b" strokeWidth={1.8} />
                     <div style={{ flex: 1 }}>
                       <h3 style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: "#9a3412",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "#475569",
                         margin: 0,
                         fontFamily: "'DM Sans', sans-serif"
                       }}>
@@ -577,30 +580,29 @@ export function ClinicalSnapshot({
                       </h3>
                     </div>
                     <div style={{
-                      background: "#ea580c",
-                      color: "white",
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      fontWeight: 700
+                      background: "#f1f5f9",
+                      color: "#64748b",
+                      padding: "2px 10px",
+                      borderRadius: "12px",
+                      fontSize: "11px",
+                      fontWeight: 600
                     }}>
                       {groupedFHIR.conditions.length}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
                     {groupedFHIR.conditions.map((item, i) => (
                       <div key={item.id || i} style={{
-                        background: "#ffffff",
-                        border: "1px solid #fed7aa",
-                        borderRadius: "12px",
-                        padding: "16px",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "14px 16px",
                         display: "flex",
                         alignItems: "flex-start",
                         justifyContent: "space-between",
-                        gap: "16px",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        gap: "12px",
+                        transition: "all 0.2s ease"
                       }}>
                         <div style={{ flex: 1 }}>
                           <div style={{
@@ -670,36 +672,27 @@ export function ClinicalSnapshot({
               {/* Medicamentos Card */}
               {groupedFHIR.medications && groupedFHIR.medications.length > 0 && (
                 <div style={{
-                  background: "linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%)",
-                  border: "1px solid #bae6fd",
-                  borderRadius: "16px",
-                  padding: "24px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                  borderLeft: "5px solid #0284c7"
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                  borderLeft: "3px solid #94a3b8"
                 }}>
                   <div style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "20px",
-                    paddingBottom: "12px",
-                    borderBottom: "2px solid #bae6fd"
+                    gap: "8px",
+                    marginBottom: "16px",
+                    paddingBottom: "10px",
+                    borderBottom: "1px solid #f1f5f9"
                   }}>
-                    <div style={{
-                      background: "linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)",
-                      borderRadius: "12px",
-                      padding: "8px",
-                      color: "white",
-                      fontSize: "18px",
-                      boxShadow: "0 2px 4px rgba(2, 132, 199, 0.3)"
-                    }}>
-                      💊
-                    </div>
+                    <Pill size={15} color="#64748b" strokeWidth={1.8} />
                     <div style={{ flex: 1 }}>
                       <h3 style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: "#0369a1",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "#475569",
                         margin: 0,
                         fontFamily: "'DM Sans', sans-serif"
                       }}>
@@ -707,30 +700,29 @@ export function ClinicalSnapshot({
                       </h3>
                     </div>
                     <div style={{
-                      background: "#0284c7",
-                      color: "white",
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      fontWeight: 700
+                      background: "#f1f5f9",
+                      color: "#64748b",
+                      padding: "2px 10px",
+                      borderRadius: "12px",
+                      fontSize: "11px",
+                      fontWeight: 600
                     }}>
                       {groupedFHIR.medications.length}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
                     {groupedFHIR.medications.map((item, i) => (
                       <div key={item.id || i} style={{
-                        background: "#ffffff",
-                        border: "1px solid #bae6fd",
-                        borderRadius: "12px",
-                        padding: "16px",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "14px 16px",
                         display: "flex",
                         alignItems: "flex-start",
                         justifyContent: "space-between",
-                        gap: "16px",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        gap: "12px",
+                        transition: "all 0.2s ease"
                       }}>
                         <div style={{ flex: 1 }}>
                           <div style={{
@@ -799,36 +791,27 @@ export function ClinicalSnapshot({
               {/* Alergias Card */}
               {groupedFHIR.allergies && groupedFHIR.allergies.length > 0 && (
                 <div style={{
-                  background: "linear-gradient(135deg, #fef2f2 0%, #ffffff 100%)",
-                  border: "1px solid #fecaca",
-                  borderRadius: "16px",
-                  padding: "24px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                  borderLeft: "5px solid #dc2626"
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                  borderLeft: "3px solid #f87171"
                 }}>
                   <div style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "20px",
-                    paddingBottom: "12px",
-                    borderBottom: "2px solid #fecaca"
+                    gap: "8px",
+                    marginBottom: "16px",
+                    paddingBottom: "10px",
+                    borderBottom: "1px solid #f1f5f9"
                   }}>
-                    <div style={{
-                      background: "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)",
-                      borderRadius: "12px",
-                      padding: "8px",
-                      color: "white",
-                      fontSize: "18px",
-                      boxShadow: "0 2px 4px rgba(220, 38, 38, 0.3)"
-                    }}>
-                      ⚠️
-                    </div>
+                    <AlertCircle size={15} color="#ef4444" strokeWidth={1.8} />
                     <div style={{ flex: 1 }}>
                       <h3 style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: "#991b1b",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "#475569",
                         margin: 0,
                         fontFamily: "'DM Sans', sans-serif"
                       }}>
@@ -836,30 +819,29 @@ export function ClinicalSnapshot({
                       </h3>
                     </div>
                     <div style={{
-                      background: "#dc2626",
-                      color: "white",
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      fontWeight: 700
+                      background: "#fef2f2",
+                      color: "#dc2626",
+                      padding: "2px 10px",
+                      borderRadius: "12px",
+                      fontSize: "11px",
+                      fontWeight: 600
                     }}>
                       {groupedFHIR.allergies.length}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
                     {groupedFHIR.allergies.map((item, i) => (
                       <div key={item.id || i} style={{
-                        background: "#ffffff",
-                        border: "1px solid #fecaca",
-                        borderRadius: "12px",
-                        padding: "16px",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "14px 16px",
                         display: "flex",
                         alignItems: "flex-start",
                         justifyContent: "space-between",
-                        gap: "16px",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        gap: "12px",
+                        transition: "all 0.2s ease"
                       }}>
                         <div style={{ flex: 1 }}>
                           <div style={{
@@ -914,36 +896,27 @@ export function ClinicalSnapshot({
               {/* Procedimientos Card */}
               {groupedFHIR.procedures && groupedFHIR.procedures.length > 0 && (
                 <div style={{
-                  background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)",
-                  border: "1px solid #bbf7d0",
-                  borderRadius: "16px",
-                  padding: "24px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                  borderLeft: "5px solid #059669"
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                  borderLeft: "3px solid #94a3b8"
                 }}>
                   <div style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "20px",
-                    paddingBottom: "12px",
-                    borderBottom: "2px solid #bbf7d0"
+                    gap: "8px",
+                    marginBottom: "16px",
+                    paddingBottom: "10px",
+                    borderBottom: "1px solid #f1f5f9"
                   }}>
-                    <div style={{
-                      background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
-                      borderRadius: "12px",
-                      padding: "8px",
-                      color: "white",
-                      fontSize: "18px",
-                      boxShadow: "0 2px 4px rgba(5, 150, 105, 0.3)"
-                    }}>
-                      🔬
-                    </div>
+                    <Activity size={15} color="#64748b" strokeWidth={1.8} />
                     <div style={{ flex: 1 }}>
                       <h3 style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: "#047857",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "#475569",
                         margin: 0,
                         fontFamily: "'DM Sans', sans-serif"
                       }}>
@@ -951,30 +924,29 @@ export function ClinicalSnapshot({
                       </h3>
                     </div>
                     <div style={{
-                      background: "#059669",
-                      color: "white",
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      fontWeight: 700
+                      background: "#f1f5f9",
+                      color: "#64748b",
+                      padding: "2px 10px",
+                      borderRadius: "12px",
+                      fontSize: "11px",
+                      fontWeight: 600
                     }}>
                       {groupedFHIR.procedures.length}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
                     {groupedFHIR.procedures.map((item, i) => (
                       <div key={item.id || i} style={{
-                        background: "#ffffff",
-                        border: "1px solid #bbf7d0",
-                        borderRadius: "12px",
-                        padding: "16px",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "14px 16px",
                         display: "flex",
                         alignItems: "flex-start",
                         justifyContent: "space-between",
-                        gap: "16px",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        gap: "12px",
+                        transition: "all 0.2s ease"
                       }}>
                         <div style={{ flex: 1 }}>
                           <div style={{
@@ -1030,36 +1002,27 @@ export function ClinicalSnapshot({
               {(groupedFHIR.labOrders || groupedFHIR.imagingOrders) &&
                 (groupedFHIR.labOrders?.length > 0 || groupedFHIR.imagingOrders?.length > 0) && (
                   <div style={{
-                    background: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)",
-                    border: "1px solid #cbd5e1",
-                    borderRadius: "16px",
-                    padding: "24px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                    borderLeft: "5px solid #475569"
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                    borderLeft: "3px solid #94a3b8"
                   }}>
                     <div style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "12px",
-                      marginBottom: "20px",
-                      paddingBottom: "12px",
-                      borderBottom: "2px solid #cbd5e1"
+                      gap: "8px",
+                      marginBottom: "16px",
+                      paddingBottom: "10px",
+                      borderBottom: "1px solid #f1f5f9"
                     }}>
-                      <div style={{
-                        background: "linear-gradient(135deg, #475569 0%, #64748b 100%)",
-                        borderRadius: "12px",
-                        padding: "8px",
-                        color: "white",
-                        fontSize: "18px",
-                        boxShadow: "0 2px 4px rgba(71, 85, 105, 0.3)"
-                      }}>
-                        📋
-                      </div>
+                      <ClipboardList size={15} color="#64748b" strokeWidth={1.8} />
                       <div style={{ flex: 1 }}>
                         <h3 style={{
-                          fontSize: "18px",
-                          fontWeight: 700,
-                          color: "#334155",
+                          fontSize: "15px",
+                          fontWeight: 600,
+                          color: "#475569",
                           margin: 0,
                           fontFamily: "'DM Sans', sans-serif"
                         }}>
@@ -1067,30 +1030,29 @@ export function ClinicalSnapshot({
                         </h3>
                       </div>
                       <div style={{
-                        background: "#475569",
-                        color: "white",
-                        padding: "4px 12px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: 700
+                        background: "#f1f5f9",
+                        color: "#64748b",
+                        padding: "2px 10px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 600
                       }}>
                         {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].length}
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gap: "12px" }}>
+                    <div style={{ display: "grid", gap: "10px" }}>
                       {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].map((item, i) => (
                         <div key={item.id || i} style={{
-                          background: "#ffffff",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: "12px",
-                          padding: "16px",
+                          background: "#f8fafc",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "8px",
+                          padding: "14px 16px",
                           display: "flex",
                           alignItems: "flex-start",
                           justifyContent: "space-between",
-                          gap: "16px",
-                          transition: "all 0.2s ease",
-                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                          gap: "12px",
+                          transition: "all 0.2s ease"
                         }}>
                           <div style={{ flex: 1 }}>
                             <div style={{
@@ -1145,36 +1107,27 @@ export function ClinicalSnapshot({
               {/* Resultados de Laboratorio Card */}
               {groupedFHIR.labResults && groupedFHIR.labResults.length > 0 && (
                 <div style={{
-                  background: "linear-gradient(135deg, #fefce8 0%, #ffffff 100%)",
-                  border: "1px solid #fde047",
-                  borderRadius: "16px",
-                  padding: "24px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                  borderLeft: "5px solid #eab308"
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                  borderLeft: "3px solid #94a3b8"
                 }}>
                   <div style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "20px",
-                    paddingBottom: "12px",
-                    borderBottom: "2px solid #fde047"
+                    gap: "8px",
+                    marginBottom: "16px",
+                    paddingBottom: "10px",
+                    borderBottom: "1px solid #f1f5f9"
                   }}>
-                    <div style={{
-                      background: "linear-gradient(135deg, #eab308 0%, #f59e0b 100%)",
-                      borderRadius: "12px",
-                      padding: "8px",
-                      color: "white",
-                      fontSize: "18px",
-                      boxShadow: "0 2px 4px rgba(234, 179, 8, 0.3)"
-                    }}>
-                      🧪
-                    </div>
+                    <FlaskConical size={15} color="#64748b" strokeWidth={1.8} />
                     <div style={{ flex: 1 }}>
                       <h3 style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: "#a16207",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "#475569",
                         margin: 0,
                         fontFamily: "'DM Sans', sans-serif"
                       }}>
@@ -1182,30 +1135,29 @@ export function ClinicalSnapshot({
                       </h3>
                     </div>
                     <div style={{
-                      background: "#eab308",
-                      color: "white",
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      fontWeight: 700
+                      background: "#f1f5f9",
+                      color: "#64748b",
+                      padding: "2px 10px",
+                      borderRadius: "12px",
+                      fontSize: "11px",
+                      fontWeight: 600
                     }}>
                       {groupedFHIR.labResults.length}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
                     {groupedFHIR.labResults.map((item, i) => (
                       <div key={item.id || i} style={{
-                        background: "#ffffff",
-                        border: "1px solid #fde047",
-                        borderRadius: "12px",
-                        padding: "16px",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "14px 16px",
                         display: "flex",
                         alignItems: "flex-start",
                         justifyContent: "space-between",
-                        gap: "16px",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        gap: "12px",
+                        transition: "all 0.2s ease"
                       }}>
                         <div style={{ flex: 1 }}>
                           <div style={{
@@ -1280,36 +1232,27 @@ export function ClinicalSnapshot({
 
                 return items.length > 0 ? (
                   <div key={category} style={{
-                    background: "linear-gradient(135deg, #f3f4f6 0%, #ffffff 100%)",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "16px",
-                    padding: "24px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                    borderLeft: "5px solid #6b7280"
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                    borderLeft: "3px solid #94a3b8"
                   }}>
                     <div style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "12px",
-                      marginBottom: "20px",
-                      paddingBottom: "12px",
-                      borderBottom: "2px solid #d1d5db"
+                      gap: "8px",
+                      marginBottom: "16px",
+                      paddingBottom: "10px",
+                      borderBottom: "1px solid #f1f5f9"
                     }}>
-                      <div style={{
-                        background: "linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)",
-                        borderRadius: "12px",
-                        padding: "8px",
-                        color: "white",
-                        fontSize: "18px",
-                        boxShadow: "0 2px 4px rgba(107, 114, 128, 0.3)"
-                      }}>
-                        📌
-                      </div>
+                      <Tag size={15} color="#64748b" strokeWidth={1.8} />
                       <div style={{ flex: 1 }}>
                         <h3 style={{
-                          fontSize: "18px",
-                          fontWeight: 700,
-                          color: "#374151",
+                          fontSize: "15px",
+                          fontWeight: 600,
+                          color: "#475569",
                           margin: 0,
                           fontFamily: "'DM Sans', sans-serif"
                         }}>
@@ -1317,30 +1260,29 @@ export function ClinicalSnapshot({
                         </h3>
                       </div>
                       <div style={{
-                        background: "#6b7280",
-                        color: "white",
-                        padding: "4px 12px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: 700
+                        background: "#f1f5f9",
+                        color: "#64748b",
+                        padding: "2px 10px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 600
                       }}>
                         {items.length}
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gap: "12px" }}>
+                    <div style={{ display: "grid", gap: "10px" }}>
                       {items.map((item, i) => (
                         <div key={item.id || i} style={{
-                          background: "#ffffff",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "12px",
-                          padding: "16px",
+                          background: "#f8fafc",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "8px",
+                          padding: "14px 16px",
                           display: "flex",
                           alignItems: "flex-start",
                           justifyContent: "space-between",
-                          gap: "16px",
-                          transition: "all 0.2s ease",
-                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                          gap: "12px",
+                          transition: "all 0.2s ease"
                         }}>
                           <div style={{ flex: 1 }}>
                             <div style={{
@@ -1398,13 +1340,16 @@ export function ClinicalSnapshot({
 
         {/* Educación y Recomendaciones */}
         <div style={{
-          borderLeft: "3px solid #0ea5e9",
+          borderLeft: "3px solid #94a3b8",
           paddingLeft: "16px",
           margin: "24px 0"
         }}>
-          <h2 style={{ ...s.h2, color: "#0ea5e9", marginBottom: "12px" }}>
-            💡 Educación y Recomendaciones
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+            <BookOpen size={15} color="#64748b" strokeWidth={1.8} />
+            <h2 style={{ ...s.h2, color: "#475569", margin: 0 }}>
+              Educación y Recomendaciones
+            </h2>
+          </div>
           <div style={s.soapSection}>
             <SoapMiniRow
               label="E"
