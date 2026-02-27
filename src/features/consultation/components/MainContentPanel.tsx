@@ -271,10 +271,9 @@ function PatientHeader({
             <h1 className="text-lg font-semibold text-slate-900">
               {patient?.name || 'Paciente'}
             </h1>
-            {inConsultation && elapsedTime !== undefined && (
-              <div className="text-sm text-slate-600 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                Consulta activa - {formatTime(elapsedTime)}
+            {patient && (
+              <div className="text-sm text-slate-500">
+                {patient.age} años • {patient.gender}
               </div>
             )}
           </div>
@@ -386,8 +385,8 @@ export function MainContentPanel({
         </div>
       </div>
 
-      {/* Sticky Clinical Summary */}
-      {activeTab === 'resumen' && (
+      {/* Sticky Clinical Summary - visible in both 'resumen' and 'resumen-clinico' tabs */}
+      {(activeTab === 'resumen' || activeTab === 'resumen-clinico') && (
         <div className="sticky top-[118px] z-10 bg-[#f8fafc] px-4 md:px-8 py-3 border-b border-slate-100 shadow-sm">
           <PatientContextSummary
             ipsData={ipsData}

@@ -172,9 +172,8 @@ function SoapMiniRow({
           <div className="relative group/text">
             {displayText ? (
               <p
-                className={`text-sm text-slate-700 leading-relaxed break-words whitespace-pre-wrap ${
-                  isTyping ? 'after:content-["│"] after:animate-pulse after:text-indigo-500 after:font-bold' : ''
-                }`}
+                className={`text-sm text-slate-700 leading-relaxed break-words whitespace-pre-wrap ${isTyping ? 'after:content-["│"] after:animate-pulse after:text-indigo-500 after:font-bold' : ''
+                  }`}
               >
                 {displayText}
               </p>
@@ -288,9 +287,8 @@ function IPSItemRow({
 
   return (
     <div
-      className={`p-3 rounded-lg ${colors.bg} border ${colors.border} text-left hover:shadow-sm transition-all group relative pr-8 ${
-        isSelectionMode ? 'cursor-pointer hover:bg-opacity-80' : ''
-      }`}
+      className={`p-3 rounded-lg ${colors.bg} border ${colors.border} text-left hover:shadow-sm transition-all group relative pr-8 ${isSelectionMode ? 'cursor-pointer hover:bg-opacity-80' : ''
+        }`}
       onClick={isSelectionMode ? onToggleSelection : undefined}
     >
       <div className="flex items-start gap-3">
@@ -383,11 +381,36 @@ export function ClinicalSnapshot({
 }: ClinicalSnapshotProps) {
   if (!data) return null;
 
-  // Group FHIR items by category
+  // Normalize singular FHIR types to their plural form used in the UI
+  const typeNormalize: Record<string, string> = {
+    condition: 'conditions',
+    medication: 'medications',
+    allergy: 'allergies',
+    procedure: 'procedures',
+    labOrder: 'labOrders',
+    imagingOrder: 'imagingOrders',
+    labResult: 'labResults',
+  };
+
+  // Spanish labels for category fallback
+  const categoryLabels: Record<string, string> = {
+    conditions: 'Diagnósticos',
+    medications: 'Medicamentos',
+    allergies: 'Alergias',
+    procedures: 'Procedimientos',
+    labOrders: 'Órdenes de Laboratorio',
+    imagingOrders: 'Órdenes de Imagen',
+    labResults: 'Resultados de Laboratorio',
+    referral: 'Referencia',
+    observation: 'Observaciones',
+    serviceRequest: 'Solicitudes',
+  };
+
+  // Group FHIR items by category (normalize to plural)
   const groupedFHIR: Record<string, FHIRPlanItem[]> = {};
   if (data.fhir && Array.isArray(data.fhir)) {
     data.fhir.forEach((item) => {
-      const category = item.type;
+      const category = typeNormalize[item.type] || item.type;
       if (!groupedFHIR[category]) {
         groupedFHIR[category] = [];
       }
@@ -425,35 +448,7 @@ export function ClinicalSnapshot({
     <>
       <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-      {/* RESUMEN NARRATIVO CLÍNICO - Sticky */}
-      <div style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
-        background: "#ffffff",
-        borderBottom: "2px solid #e5e7eb",
-        margin: "0 0 20px",
-        padding: "16px 20px"
-      }}>
-        <div style={{
-          fontSize: 16,
-          lineHeight: 1.6,
-          color: "#2d3748",
-          fontWeight: 500,
-          padding: "12px 16px",
-          background: "#f8fafc",
-          border: "1px solid #e2e8f0",
-          borderLeft: "4px solid #4299e1",
-          borderRadius: "4px"
-        }}>
-          <h2 className="text-lg font-bold mb-3 text-blue-800" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            📋 RESUMEN NARRATIVO CLÍNICO
-          </h2>
-          <p style={{ margin: 0, fontSize: 16 }}>
-            {data?.narrativeSummary || "Resumen narrativo no disponible para esta consulta."}
-          </p>
-        </div>
-      </div>
+
 
       <div className="w-full" style={{
         fontFamily: "'Source Serif 4', Georgia, serif",
@@ -1033,119 +1028,119 @@ export function ClinicalSnapshot({
 
               {/* Órdenes Médicas Card */}
               {(groupedFHIR.labOrders || groupedFHIR.imagingOrders) &&
-               (groupedFHIR.labOrders?.length > 0 || groupedFHIR.imagingOrders?.length > 0) && (
-                <div style={{
-                  background: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "16px",
-                  padding: "24px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-                  borderLeft: "5px solid #475569"
-                }}>
+                (groupedFHIR.labOrders?.length > 0 || groupedFHIR.imagingOrders?.length > 0) && (
                   <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "20px",
-                    paddingBottom: "12px",
-                    borderBottom: "2px solid #cbd5e1"
+                    background: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "16px",
+                    padding: "24px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                    borderLeft: "5px solid #475569"
                   }}>
                     <div style={{
-                      background: "linear-gradient(135deg, #475569 0%, #64748b 100%)",
-                      borderRadius: "12px",
-                      padding: "8px",
-                      color: "white",
-                      fontSize: "18px",
-                      boxShadow: "0 2px 4px rgba(71, 85, 105, 0.3)"
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginBottom: "20px",
+                      paddingBottom: "12px",
+                      borderBottom: "2px solid #cbd5e1"
                     }}>
-                      📋
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: "#334155",
-                        margin: 0,
-                        fontFamily: "'DM Sans', sans-serif"
-                      }}>
-                        Órdenes Médicas
-                      </h3>
-                    </div>
-                    <div style={{
-                      background: "#475569",
-                      color: "white",
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      fontWeight: 700
-                    }}>
-                      {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].length}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: "12px" }}>
-                    {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].map((item, i) => (
-                      <div key={item.id || i} style={{
-                        background: "#ffffff",
-                        border: "1px solid #cbd5e1",
+                      <div style={{
+                        background: "linear-gradient(135deg, #475569 0%, #64748b 100%)",
                         borderRadius: "12px",
-                        padding: "16px",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: "16px",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        padding: "8px",
+                        color: "white",
+                        fontSize: "18px",
+                        boxShadow: "0 2px 4px rgba(71, 85, 105, 0.3)"
                       }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontSize: "15px",
-                            fontWeight: 600,
-                            color: "#1f2937",
-                            marginBottom: "6px",
-                            lineHeight: 1.4
-                          }}>
-                            {item.display || item.text}
-                          </div>
-                          {item.details && (
+                        📋
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{
+                          fontSize: "18px",
+                          fontWeight: 700,
+                          color: "#334155",
+                          margin: 0,
+                          fontFamily: "'DM Sans', sans-serif"
+                        }}>
+                          Órdenes Médicas
+                        </h3>
+                      </div>
+                      <div style={{
+                        background: "#475569",
+                        color: "white",
+                        padding: "4px 12px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: 700
+                      }}>
+                        {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].length}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gap: "12px" }}>
+                      {[...(groupedFHIR.labOrders || []), ...(groupedFHIR.imagingOrders || [])].map((item, i) => (
+                        <div key={item.id || i} style={{
+                          background: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "12px",
+                          padding: "16px",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: "16px",
+                          transition: "all 0.2s ease",
+                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                        }}>
+                          <div style={{ flex: 1 }}>
                             <div style={{
-                              fontSize: "13px",
-                              color: "#6b7280",
-                              fontStyle: "italic"
+                              fontSize: "15px",
+                              fontWeight: 600,
+                              color: "#1f2937",
+                              marginBottom: "6px",
+                              lineHeight: 1.4
                             }}>
-                              {item.details}
+                              {item.display || item.text}
+                            </div>
+                            {item.details && (
+                              <div style={{
+                                fontSize: "13px",
+                                color: "#6b7280",
+                                fontStyle: "italic"
+                              }}>
+                                {item.details}
+                              </div>
+                            )}
+                          </div>
+                          {!isHistoryView && (
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                              <Button
+                                onClick={() => onUpdateFHIR?.(item.id, item)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-all"
+                                title="Editar orden"
+                              >
+                                <FileEdit size={16} />
+                              </Button>
+                              {onRemoveFHIR && (
+                                <Button
+                                  onClick={() => item.id && onRemoveFHIR(item.id)}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>
-                        {!isHistoryView && (
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            <Button
-                              onClick={() => onUpdateFHIR?.(item.id, item)}
-                              variant="ghost"
-                              size="sm"
-                              className="h-10 w-10 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-all"
-                              title="Editar orden"
-                            >
-                              <FileEdit size={16} />
-                            </Button>
-                            {onRemoveFHIR && (
-                              <Button
-                                onClick={() => item.id && onRemoveFHIR(item.id)}
-                                variant="ghost"
-                                size="sm"
-                                className="h-10 w-10 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Eliminar"
-                              >
-                                <Trash2 size={16} />
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Resultados de Laboratorio Card */}
               {groupedFHIR.labResults && groupedFHIR.labResults.length > 0 && (
@@ -1318,7 +1313,7 @@ export function ClinicalSnapshot({
                           margin: 0,
                           fontFamily: "'DM Sans', sans-serif"
                         }}>
-                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                          {categoryLabels[category] || category.charAt(0).toUpperCase() + category.slice(1)}
                         </h3>
                       </div>
                       <div style={{

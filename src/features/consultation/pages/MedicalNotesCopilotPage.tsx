@@ -55,40 +55,16 @@ import { ChatPanelCopilot } from '../components/ChatPanelCopilot';
 import { MainContentPanel } from '../components/MainContentPanel';
 import { SOAPCard } from '../components/SOAPCard';
 import { SafeguardsPanel } from '../components/SafeguardsPanel';
+import { useWebSpeechRecognition } from '../hooks/useWebSpeechRecognition';
 
-interface MedicalNotesCopilotPageProps {}
+interface MedicalNotesCopilotPageProps { }
 
-// Mock hooks and services for now - will be implemented later
+// Layout detection hook
 function useMedicalConsultationLayout() {
   return {
     isDesktop: window.innerWidth >= 1024,
     isMobile: window.innerWidth < 768,
     isTablet: window.innerWidth >= 768 && window.innerWidth < 1024,
-  };
-}
-
-function useVoiceRecognition() {
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-
-  const startListening = useCallback(() => {
-    setIsListening(true);
-  }, []);
-
-  const stopListening = useCallback(() => {
-    setIsListening(false);
-  }, []);
-
-  const toggleListening = useCallback(() => {
-    setIsListening(prev => !prev);
-  }, []);
-
-  return {
-    isListening,
-    transcript,
-    startListening,
-    stopListening,
-    toggleListening,
   };
 }
 
@@ -178,8 +154,74 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     clinicalEvolution: []
   });
 
-  // Voice recognition
-  const { isListening, transcript, toggleListening } = useVoiceRecognition();
+  // Invisible buffer for dictation (same pattern as original)
+  const dictationBuffer = useRef('');
+  const [bufferCharCount, setBufferCharCount] = useState(0);
+  const [lastBufferUpdate, setLastBufferUpdate] = useState<number>(0);
+  const lastBufferUpdateRef = useRef<number>(0);
+
+  // Web Speech Recognition hook with real-time transcription (same as original)
+  const {
+    isListening: isRecording,
+    toggleListening: toggleRecording,
+    stopListening: stopRecording,
+    isSupported: speechSupported,
+    interimTranscript,
+    error: speechError,
+    clearError: clearSpeechError,
+    permissionStatus: micPermissionStatus,
+    requestPermission: requestMicPermission,
+    connectivityStatus,
+    checkConnectivity,
+    resetTranscript,
+  } = useWebSpeechRecognition({
+    language: 'es-ES',
+    continuous: true,
+    interimResults: true,
+    autoRestart: true,
+    onResult: (transcript) => {
+      // Append finalized text to dictation buffer
+      if (transcript.trim()) {
+        const newBuffer = dictationBuffer.current
+          ? `${dictationBuffer.current} ${transcript.trim()}`
+          : transcript.trim();
+        dictationBuffer.current = newBuffer;
+        setLastBufferUpdate(Date.now());
+        lastBufferUpdateRef.current = Date.now();
+        setBufferCharCount(newBuffer.length);
+      }
+    },
+    onError: (error) => {
+      console.error('Speech recognition error:', error);
+    },
+  });
+
+  // Paused State (managed locally like original)
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Recording duration tracking
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const chunksCount = 0; // Not using MediaRecorder chunks
+
+  // Track recording duration
+  useEffect(() => {
+    if (isRecording && !recordingStartTime) {
+      setRecordingStartTime(Date.now());
+    }
+    if (!isRecording) {
+      setRecordingStartTime(null);
+      setRecordingDuration(0);
+    }
+  }, [isRecording]);
+
+  useEffect(() => {
+    if (!isRecording || !recordingStartTime) return;
+    const interval = setInterval(() => {
+      setRecordingDuration(Date.now() - recordingStartTime);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isRecording, recordingStartTime]);
 
 
   // Consultation state
@@ -226,9 +268,9 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         name: patientData.name,
         age: calculatedAge || patientData.age || 'No especificada',
         gender: patientData.gender === 'male' ? 'Masculino' :
-                patientData.gender === 'female' ? 'Femenino' : 'No especificado',
+          patientData.gender === 'female' ? 'Femenino' : 'No especificado',
         genderShort: patientData.gender === 'male' ? 'M' :
-                    patientData.gender === 'female' ? 'F' : 'N/E',
+          patientData.gender === 'female' ? 'F' : 'N/E',
         photoUrl: patientData.photoURL || '',
         fhirId: patientId!
       });
@@ -239,81 +281,81 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
       // Transform FHIR data to IPS format
       const transformedIpsData: IPSDisplayData = {
         encounters: (patientEncounters && patientEncounters.length > 0 &&
-                     patientEncounters.some(e => e.practitionerName || e.practitioner || e.reasonCode || e.reasonText))
+          patientEncounters.some(e => e.practitionerName || e.practitioner || e.reasonCode || e.reasonText))
           ? patientEncounters.map(encounter => ({
-              id: encounter.id,
-              date: encounter.periodStart ? new Date(encounter.periodStart).toLocaleDateString() : 'Fecha no disponible',
-              type: encounter.class?.display || encounter.type || 'Consulta',
-              doctor: encounter.practitionerName || encounter.practitioner || 'Dr. No especificado',
-              summary: encounter.reasonCode || encounter.reasonText || 'Sin descripción disponible',
-              patientNote: encounter.note
-            }))
+            id: encounter.id,
+            date: encounter.periodStart ? new Date(encounter.periodStart).toLocaleDateString() : 'Fecha no disponible',
+            type: encounter.class?.display || encounter.type || 'Consulta',
+            doctor: encounter.practitionerName || encounter.practitioner || 'Dr. No especificado',
+            summary: encounter.reasonCode || encounter.reasonText || 'Sin descripción disponible',
+            patientNote: encounter.note
+          }))
           : [
-              // Datos de muestra para demostración del historial de consultas
-              {
-                id: 'demo-1',
-                date: '15/02/2026',
-                type: 'Consulta de Control',
-                doctor: 'Dr. María González',
-                summary: 'Control rutinario, paciente refiere mejoría en dolor abdominal. Examen físico normal. Continuar tratamiento actual.',
-                patientNote: 'Me siento mucho mejor, el dolor ha disminuido considerablemente.'
-              },
-              {
-                id: 'demo-2',
-                date: '08/02/2026',
-                type: 'Consulta de Urgencia',
-                doctor: 'Dr. Carlos Rodríguez',
-                summary: 'Paciente acude por dolor abdominal intenso de 2 horas de evolución. Se descarta cuadro quirúrgico. Manejo sintomático.',
-                patientNote: 'El dolor comenzó después del almuerzo, muy intenso en lado derecho.'
-              },
-              {
-                id: 'demo-3',
-                date: '01/02/2026',
-                type: 'Consulta Medicina General',
-                doctor: 'Dr. Ana Martínez',
-                summary: 'Chequeo médico preventivo. Exámenes de laboratorio dentro de parámetros normales. Recomendaciones de estilo de vida.',
-                patientNote: 'Quiero mantenerme saludable y prevenir enfermedades.'
-              },
-              {
-                id: 'demo-4',
-                date: '25/01/2026',
-                type: 'Consulta Especializada',
-                doctor: 'Dr. Luis Hernández',
-                summary: 'Evaluación cardiológica por antecedentes familiares. ECG normal, presión arterial controlada. Continuar con seguimiento.',
-                patientNote: 'Mi padre tuvo problemas del corazón, quiero estar seguro.'
-              },
-              {
-                id: 'demo-5',
-                date: '18/01/2026',
-                type: 'Teleconsulta',
-                doctor: 'Dr. Patricia Vega',
-                summary: 'Seguimiento de tratamiento para hipertensión arterial. Paciente refiere adherencia al tratamiento. Tensión arterial controlada.',
-                patientNote: 'Estoy tomando los medicamentos como me indicaron.'
-              },
-              {
-                id: 'demo-6',
-                date: '10/01/2026',
-                type: 'Consulta Preventiva',
-                doctor: 'Dr. Roberto Silva',
-                summary: 'Aplicación de vacunas de refuerzo. Información sobre prevención de enfermedades estacionales. Sin contraindicaciones.',
-                patientNote: 'Necesitaba ponerme al día con mis vacunas antes del viaje.'
-              },
-              {
-                id: 'demo-7',
-                date: '03/01/2026',
-                type: 'Consulta de Emergencia',
-                doctor: 'Dr. Carmen López',
-                summary: 'Atención por cuadro febril y malestar general. Diagnóstico de síndrome viral. Tratamiento sintomático y reposo.',
-                patientNote: 'Tenía fiebre alta y mucho malestar, me preocupé.'
-              }
-            ],
+            // Datos de muestra para demostración del historial de consultas
+            {
+              id: 'demo-1',
+              date: '15/02/2026',
+              type: 'Consulta de Control',
+              doctor: 'Dr. María González',
+              summary: 'Control rutinario, paciente refiere mejoría en dolor abdominal. Examen físico normal. Continuar tratamiento actual.',
+              patientNote: 'Me siento mucho mejor, el dolor ha disminuido considerablemente.'
+            },
+            {
+              id: 'demo-2',
+              date: '08/02/2026',
+              type: 'Consulta de Urgencia',
+              doctor: 'Dr. Carlos Rodríguez',
+              summary: 'Paciente acude por dolor abdominal intenso de 2 horas de evolución. Se descarta cuadro quirúrgico. Manejo sintomático.',
+              patientNote: 'El dolor comenzó después del almuerzo, muy intenso en lado derecho.'
+            },
+            {
+              id: 'demo-3',
+              date: '01/02/2026',
+              type: 'Consulta Medicina General',
+              doctor: 'Dr. Ana Martínez',
+              summary: 'Chequeo médico preventivo. Exámenes de laboratorio dentro de parámetros normales. Recomendaciones de estilo de vida.',
+              patientNote: 'Quiero mantenerme saludable y prevenir enfermedades.'
+            },
+            {
+              id: 'demo-4',
+              date: '25/01/2026',
+              type: 'Consulta Especializada',
+              doctor: 'Dr. Luis Hernández',
+              summary: 'Evaluación cardiológica por antecedentes familiares. ECG normal, presión arterial controlada. Continuar con seguimiento.',
+              patientNote: 'Mi padre tuvo problemas del corazón, quiero estar seguro.'
+            },
+            {
+              id: 'demo-5',
+              date: '18/01/2026',
+              type: 'Teleconsulta',
+              doctor: 'Dr. Patricia Vega',
+              summary: 'Seguimiento de tratamiento para hipertensión arterial. Paciente refiere adherencia al tratamiento. Tensión arterial controlada.',
+              patientNote: 'Estoy tomando los medicamentos como me indicaron.'
+            },
+            {
+              id: 'demo-6',
+              date: '10/01/2026',
+              type: 'Consulta Preventiva',
+              doctor: 'Dr. Roberto Silva',
+              summary: 'Aplicación de vacunas de refuerzo. Información sobre prevención de enfermedades estacionales. Sin contraindicaciones.',
+              patientNote: 'Necesitaba ponerme al día con mis vacunas antes del viaje.'
+            },
+            {
+              id: 'demo-7',
+              date: '03/01/2026',
+              type: 'Consulta de Emergencia',
+              doctor: 'Dr. Carmen López',
+              summary: 'Atención por cuadro febril y malestar general. Diagnóstico de síndrome viral. Tratamiento sintomático y reposo.',
+              patientNote: 'Tenía fiebre alta y mucho malestar, me preocupé.'
+            }
+          ],
 
         allergies: patientAllergies?.map(allergy => ({
           name: allergy.allergen || 'Alérgeno no especificado',
           severity: allergy.severity === 'severe' ? 'Alta' :
-                   allergy.severity === 'moderate' ? 'Moderada' :
-                   allergy.severity === 'mild' ? 'Baja' :
-                   'No especificada',
+            allergy.severity === 'moderate' ? 'Moderada' :
+              allergy.severity === 'mild' ? 'Baja' :
+                'No especificada',
           date: allergy.dateIdentified ? new Date(allergy.dateIdentified).toLocaleDateString() : undefined,
           doctor: 'Dr. No especificado',
           notes: allergy.notes || allergy.reaction || undefined
@@ -332,8 +374,8 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         conditions: patientConditions?.map(condition => ({
           name: condition.code || condition.display || 'Condición no especificada',
           status: condition.clinicalStatus === 'active' ? 'Activa' :
-                 condition.clinicalStatus === 'resolved' ? 'Resuelta' :
-                 condition.clinicalStatus || 'Estado desconocido',
+            condition.clinicalStatus === 'resolved' ? 'Resuelta' :
+              condition.clinicalStatus || 'Estado desconocido',
           date: condition.recordedDate ? new Date(condition.recordedDate).toLocaleDateString() : undefined,
           doctor: condition.recorder || 'Dr. No especificado',
           notes: condition.note
@@ -353,9 +395,9 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           name: order.testName,
           type: 'Laboratorio',
           status: order.status === 'completed' ? 'Completada' :
-                 order.status === 'active' ? 'Pendiente' :
-                 order.status === 'cancelled' ? 'Cancelada' :
-                 'Estado desconocido',
+            order.status === 'active' ? 'Pendiente' :
+              order.status === 'cancelled' ? 'Cancelada' :
+                'Estado desconocido',
           priority: order.priority || 'routine',
           date: order.requestedDate ? new Date(order.requestedDate).toLocaleDateString() : undefined,
           doctor: order.requesterName || order.requester || 'Dr. No especificado',
@@ -402,8 +444,8 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
       console.error('Error loading patient FHIR data:', ipsError);
     }
   }, [ipsLoading, patientData, patientAllergies, patientMedications, patientConditions,
-      patientImmunizations, patientEncounters, patientVitalSigns, patientServiceRequests,
-      patientLabResults, ipsError, patientId]);
+    patientImmunizations, patientEncounters, patientVitalSigns, patientServiceRequests,
+    patientLabResults, ipsError, patientId]);
 
   // Load patients
   useEffect(() => {
@@ -448,7 +490,7 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         .map(item => ({
           name: item.display || item.text || 'Alergia',
           severity: item.warningLevel === 'critical' ? 'Severa' :
-                   item.warningLevel === 'warning' ? 'Moderada' : 'Leve',
+            item.warningLevel === 'warning' ? 'Moderada' : 'Leve',
           date: new Date().toLocaleDateString(),
           doctor: 'Dr. Actual',
           notes: item.notes || item.warning
@@ -460,8 +502,8 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         .map(item => ({
           name: item.display || item.text || 'Diagnóstico',
           status: item.verificationStatus === 'confirmed' ? 'Confirmado' :
-                 item.verificationStatus === 'presumptive' ? 'Presuntivo' :
-                 'Activo',
+            item.verificationStatus === 'presumptive' ? 'Presuntivo' :
+              'Activo',
           date: new Date().toLocaleDateString(),
           doctor: 'Dr. Actual',
           notes: item.notes || item.code
@@ -527,22 +569,140 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     setInConsultation(false);
     setElapsedTime(0);
     setConsultationStartTime(null);
-    // Add finalization logic here
+    // Stop voice recognition if active
+    if (isRecording) {
+      stopRecording();
+    }
+    setIsPaused(false);
   };
 
-  // Handle sending messages and activating consultation
-  const handleSendMessage = () => {
-    // Start consultation on first message if not already started
-    if (!inConsultation && inputText.trim()) {
+  // Handle sending messages — combines buffer + typed text (same as original)
+  // silentMode: When true, suppress user message display (used for auto-flush streaming)
+  const handleSendMessage = useCallback(async (silentMode: boolean = false) => {
+    const bufferText = dictationBuffer.current;
+    const combinedVoice = bufferText ? bufferText.trim() : '';
+    const finalText = `${inputText} ${combinedVoice}`.trim();
+
+    if (!finalText) return;
+
+    // Start consultation on first message
+    if (!inConsultation && finalText) {
       console.log('🚀 Starting consultation...');
       setInConsultation(true);
       setConsultationStartTime(Date.now());
     }
 
-    // Send the message using the hook
-    console.log('📨 Sending message:', inputText);
-    sendMessage();
-  };
+    // Clear everything
+    setInputText('');
+    dictationBuffer.current = '';
+    setBufferCharCount(0);
+    resetTranscript();
+
+    // Send the combined text directly (pass as argument to avoid React state race)
+    console.log('📨 Sending message:', finalText);
+    await sendMessage(finalText, { silentMode });
+  }, [inputText, inConsultation, resetTranscript, sendMessage]);
+
+  // Ref for latest handleSendMessage (for streaming auto-flush)
+  const sendRef = useRef(handleSendMessage);
+  useEffect(() => {
+    sendRef.current = handleSendMessage;
+  }, [handleSendMessage]);
+
+  // Handle stop recording and send (same as original)
+  // silentMode defaults to true for streaming, false for finalize
+  const handleStopRecordingAndSend = useCallback(async (silentMode: boolean = true) => {
+    const bufferText = dictationBuffer.current;
+    const combinedVoice = bufferText
+      ? `${bufferText} ${interimTranscript || ''}`.trim()
+      : (interimTranscript || '').trim();
+    const finalText = `${inputText} ${combinedVoice}`.trim();
+
+    // Stop recording
+    stopRecording();
+    setIsPaused(false);
+
+    // Send if there's text
+    if (finalText) {
+      // Start consultation on first message
+      if (!inConsultation) {
+        setInConsultation(true);
+        setConsultationStartTime(Date.now());
+      }
+      setInputText('');
+      dictationBuffer.current = '';
+      setBufferCharCount(0);
+      resetTranscript();
+      // Send via copilot (pass text directly to avoid React state race)
+      await sendMessage(finalText, { silentMode });
+    }
+  }, [inputText, interimTranscript, stopRecording, resetTranscript, sendMessage, inConsultation]);
+
+  // Handle Pause: Stop recording + process text + set paused UI state (same as original)
+  const handlePauseRecording = useCallback(async () => {
+    await handleStopRecordingAndSend(true); // silentMode: streaming text, suppress user msg
+    setIsPaused(true);
+  }, [handleStopRecordingAndSend]);
+
+  // Handle Start/Resume: Clear paused state and toggle recording (same as original)
+  const handleStartRecording = useCallback(async () => {
+    setIsPaused(false);
+    await toggleRecording();
+  }, [toggleRecording]);
+
+  // Handle Finalize Recording: Stop, process, done (same as original)
+  const handleFinalizeRecording = useCallback(async () => {
+    await handleStopRecordingAndSend(true); // silentMode: streaming text, suppress user msg
+    setIsPaused(false);
+  }, [handleStopRecordingAndSend]);
+
+  // Streaming Logic: Auto-send on silence or sufficient length (same as original)
+  const [lastProcessedTime, setLastProcessedTime] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!isRecording || aiProcessing) return;
+    const bufferText = dictationBuffer.current;
+    if (!bufferText || bufferText.trim().length === 0) return;
+
+    const timeSinceLastProcess = Date.now() - (lastProcessedTime?.getTime() || 0);
+    const MIN_SEND_INTERVAL = 1500;
+
+    // Length trigger: if buffer is long enough, auto-send (silentMode: suppress user msg)
+    if (bufferText.length > 150 && timeSinceLastProcess > MIN_SEND_INTERVAL) {
+      handleSendMessage(true);
+      setLastProcessedTime(new Date());
+      return;
+    }
+
+    // Silence trigger: if user stops speaking for 1.5s, auto-send (silentMode: suppress user msg)
+    const timeoutId = setTimeout(() => {
+      const currentTimeSince = Date.now() - (lastProcessedTime?.getTime() || 0);
+      if (currentTimeSince < MIN_SEND_INTERVAL) return;
+      handleSendMessage(true);
+      setLastProcessedTime(new Date());
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [isRecording, handleSendMessage, aiProcessing, lastBufferUpdate, lastProcessedTime]);
+
+  // Polling watchdog: force-send stale buffer after 2s (same as original)
+  useEffect(() => {
+    const MIN_SEND_INTERVAL = 1500;
+    const intervalId = setInterval(() => {
+      if (!isRecording || aiProcessing) return;
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastBufferUpdateRef.current;
+      const timeSinceLastProcess = now - (lastProcessedTime?.getTime() || 0);
+      const hasPendingText = dictationBuffer.current && dictationBuffer.current.trim().length > 0;
+      if (timeSinceLastProcess < MIN_SEND_INTERVAL) return;
+      if (hasPendingText && timeSinceLastUpdate > 2000) {
+        lastBufferUpdateRef.current = Date.now();
+        sendRef.current(true); // silentMode: streaming auto-flush
+        setLastProcessedTime(new Date());
+      }
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [isRecording, aiProcessing, lastProcessedTime]);
 
   // Debug clinical state changes
   useEffect(() => {
@@ -607,26 +767,27 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
 
         {/* Mobile Chat Overlay */}
         {activeTab === 'chat' && (
-          <div className="fixed inset-0 bg-white z-50">
-            <div className="h-full flex flex-col">
-              {/* Clinical Safeguards Panel for Mobile */}
-              <SafeguardsPanel
-                alerts={clinicalGuard.activeAlerts || []}
-              />
-
-              <div className="flex-1">
-                <ChatPanelCopilot
+          <div className="fixed inset-0 bg-white z-50 overflow-hidden">
+            <div className="h-full">
+              <ChatPanelCopilot
                 width={400}
-                onResize={() => {}}
+                onResize={() => { }}
                 isRight={true}
-                togglePosition={() => {}}
+                togglePosition={() => { }}
                 messages={messages}
                 inputText={inputText}
                 setInputText={setInputText}
                 onSendMessage={handleSendMessage}
-                isRecording={isListening}
-                toggleRecording={toggleListening}
-                onPlayAudio={() => {}}
+                isRecording={isRecording}
+                toggleRecording={handleStartRecording}
+                onStopRecordingAndSend={handleStopRecordingAndSend}
+                onPauseRecording={handlePauseRecording}
+                onFinalizeRecording={handleFinalizeRecording}
+                isPaused={isPaused}
+                interimTranscript={interimTranscript}
+                speechSupported={speechSupported}
+                bufferCharCount={bufferCharCount}
+                onPlayAudio={() => { }}
                 isPlayingAudio={false}
                 isProcessing={aiProcessing}
                 inConsultation={inConsultation}
@@ -634,10 +795,8 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
                 elapsedTime={elapsedTime}
                 onApproveSuggestion={handleApproveSuggestion}
                 ipsData={ipsData}
-                clinicalState={clinicalState}
-                patientRecord={patientRecord}
+                patientInfo={patientRecord ? `${patientRecord.age} años • ${patientRecord.gender}` : undefined}
               />
-              </div>
             </div>
           </div>
         )}
@@ -647,14 +806,14 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
 
   // Desktop layout
   return (
-    <div className="h-screen flex bg-gray-50">
+    <div className="h-screen flex bg-gray-50 overflow-hidden">
       {/* Main Content */}
       <div className="flex-1 min-w-0">
         <MainContentPanel
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           tabs={tabs}
-          setTabs={() => {}}
+          setTabs={() => { }}
           patientRecord={patientRecord}
           ipsData={ipsData}
           vitalSigns={vitalSigns}
@@ -668,26 +827,27 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         />
       </div>
 
-      {/* Chat Panel */}
-      <div className="w-96 flex-shrink-0 flex flex-col">
-        {/* Clinical Safeguards Panel for Desktop */}
-        <SafeguardsPanel
-          alerts={clinicalGuard.activeAlerts || []}
-        />
-
-        <div className="flex-1">
-          <ChatPanelCopilot
+      {/* Chat Panel - Matches original: direct child, full height, no extra wrapper */}
+      <div style={{ width: 400 }} className="h-full">
+        <ChatPanelCopilot
           width={400}
-          onResize={() => {}}
+          onResize={() => { }}
           isRight={true}
-          togglePosition={() => {}}
+          togglePosition={() => { }}
           messages={messages}
           inputText={inputText}
           setInputText={setInputText}
           onSendMessage={handleSendMessage}
-          isRecording={isListening}
-          toggleRecording={toggleListening}
-          onPlayAudio={() => {}}
+          isRecording={isRecording}
+          toggleRecording={handleStartRecording}
+          onStopRecordingAndSend={handleStopRecordingAndSend}
+          onPauseRecording={handlePauseRecording}
+          onFinalizeRecording={handleFinalizeRecording}
+          isPaused={isPaused}
+          interimTranscript={interimTranscript}
+          speechSupported={speechSupported}
+          bufferCharCount={bufferCharCount}
+          onPlayAudio={() => { }}
           isPlayingAudio={false}
           isProcessing={aiProcessing}
           inConsultation={inConsultation}
@@ -695,10 +855,8 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           elapsedTime={elapsedTime}
           onApproveSuggestion={handleApproveSuggestion}
           ipsData={ipsData}
-          clinicalState={clinicalState}
-          patientRecord={patientRecord}
+          patientInfo={patientRecord ? `${patientRecord.age} años • ${patientRecord.gender}` : undefined}
         />
-        </div>
       </div>
     </div>
   );

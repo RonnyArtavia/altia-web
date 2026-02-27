@@ -14,16 +14,16 @@ import {
   FileHeart,
   CheckCircle,
   XCircle,
-  HelpCircle
+  HelpCircle,
+  Pause,
+  Play,
+  Square
 } from 'lucide-react';
-
-// Use explicit SVG URL for better compatibility
-const altiaIconSvg = '/src/assets/logo/ALTIA-Icono.svg';
-import type { ChatMessage, IPSDisplayData, CopilotSuggestion } from '@/features/consultation/types/medical-notes';
+import type { ChatMessage, IPSDisplayData, CopilotSuggestion } from '../types/medical-notes';
 import { cn } from '@/lib/utils';
-import { useClinicalGuard } from '@/features/consultation/hooks/useClinicalGuard';
+import { useClinicalGuard } from '../hooks/useClinicalGuard';
 import { SafeguardsPanel } from './SafeguardsPanel';
-import { useFileUpload } from '@/features/consultation/hooks/useFileUpload';
+import { useFileUpload } from '../hooks/useFileUpload';
 import { LabResultReview } from './LabResultReview'; // Feature: Lab Review
 import { ProcessingStatusIndicator } from './ProcessingStatusIndicator';
 
@@ -61,6 +61,7 @@ interface ChatPanelCopilotProps {
   onConfirmLabResults?: (data: any) => void;
   clinicalState?: any;
   patientName?: string;
+  patientInfo?: string;
   onApproveSuggestion?: (suggestion: CopilotSuggestion) => void;
   isPreprocessing?: boolean;
   lastProcessedTime?: Date | null;
@@ -111,6 +112,7 @@ export function ChatPanelCopilot({
   onAnalyzeDocument,
   onConfirmLabResults,
   patientName,
+  patientInfo,
   onApproveSuggestion,
   isPreprocessing,
   bufferCharCount = 0,
@@ -148,7 +150,7 @@ export function ChatPanelCopilot({
   const [pendingLabResults, setPendingLabResults] = useState<any | null>(null);
 
   /* Clinical Guard (Real-time CDS) */
-  const safeIpsData = ipsData || { allergies: [], medications: [], conditions: [], vaccines: [], encounters: [], clinicalEvolution: [] };
+  const safeIpsData = ipsData || { encounters: [], allergies: [], medications: [], conditions: [], vaccines: [], vaccinations: [] };
   const { alerts, status: guardStatus } = useClinicalGuard(inputText, safeIpsData);
 
   // Handle Suggestion Approval
@@ -250,12 +252,8 @@ export function ChatPanelCopilot({
       {/* Modern Header - Minimalist */}
       <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-sm border-b border-border/40 sticky top-0 z-10">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
-            <img
-              src={altiaIconSvg}
-              alt="ALTIA"
-              className="w-5 h-5 object-contain"
-            />
+          <div className="p-2 bg-primary/10 rounded-lg text-primary">
+            <Sparkles size={18} fill="currentColor" className="opacity-20" />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-foreground tracking-tight flex items-center gap-2">
@@ -264,33 +262,36 @@ export function ChatPanelCopilot({
                 v2.2
               </span>
             </h2>
-            <div className="flex items-start gap-2 mt-0.5">
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", inConsultation ? "bg-emerald-500" : "bg-slate-300")} />
-                  <span className="text-xs text-muted-foreground">
-                    {inConsultation ? 'Sesión Activa' : 'En espera'}
-                  </span>
-                </div>
-
-                {/* Buffer Indicator (Always Visible in Consultation) */}
-                {inConsultation && (
-                  <span className={cn(
-                    "text-[10px] font-mono ml-3 mt-0.5 transition-colors",
-                    (bufferCharCount || 0) > 150 ? "text-amber-600 animate-pulse font-bold" : "text-slate-400"
-                  )}>
-                    Buffer: {bufferCharCount || 0}/200
-                  </span>
-                )}
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", inConsultation ? "bg-emerald-500" : "bg-slate-300")} />
+                <span className="text-xs text-muted-foreground">
+                  {inConsultation ? 'Sesión Activa' : 'En espera'}
+                </span>
               </div>
 
-              {inConsultation && elapsedTime !== undefined && (
-                <div className="flex items-center gap-2 border-l border-border pl-2 h-4 self-center">
-                  <span className="text-xs font-mono text-muted-foreground/80">
-                    {Math.floor(elapsedTime / 60).toString().padStart(2, '0')}:{(elapsedTime % 60).toString().padStart(2, '0')}
-                  </span>
-                </div>
-              )}
+              {inConsultation && elapsedTime !== undefined && (() => {
+                const minutes = Math.floor(elapsedTime / 60);
+                const isCritical = minutes >= 15;
+                const isWarning = minutes >= 10;
+                return (
+                  <div className={cn(
+                    "flex items-center gap-1 border-l pl-2 transition-colors",
+                    isCritical ? "border-rose-300" : isWarning ? "border-amber-300" : "border-border"
+                  )}>
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full animate-pulse",
+                      isCritical ? "bg-rose-500" : isWarning ? "bg-amber-500" : "bg-emerald-500"
+                    )} />
+                    <span className={cn(
+                      "text-xs font-mono font-semibold",
+                      isCritical ? "text-rose-600 animate-pulse" : isWarning ? "text-amber-600" : "text-muted-foreground/80"
+                    )}>
+                      {minutes.toString().padStart(2, '0')}:{(elapsedTime % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -363,19 +364,11 @@ export function ChatPanelCopilot({
             <div className={cn(
               "shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-medium select-none mt-1 shadow-sm transition-transform hover:scale-105",
               msg.role === 'assistant'
-                ? "bg-white p-1"
+                ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground"
             )}>
-              {/* ALTIA icon for assistant, text avatar for user */}
-              {msg.role === 'assistant' ? (
-                <img
-                  src={altiaIconSvg}
-                  alt="ALTIA"
-                  className="w-6 h-6 object-contain"
-                />
-              ) : (
-                "Dr"
-              )}
+              {/* Simple text avatar if icons missing, or use Sparkles that is imported */}
+              {msg.role === 'assistant' ? <Sparkles size={14} /> : "Dr"}
             </div>
 
             {/* Message Content */}
@@ -426,11 +419,7 @@ export function ChatPanelCopilot({
               {msg.suggestions && msg.suggestions.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center gap-2 mb-1 pl-1">
-                    <img
-                      src={altiaIconSvg}
-                      alt="ALTIA"
-                      className="w-3 h-3 object-contain"
-                    />
+                    <Sparkles size={12} className="text-indigo-500" />
                     <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider">Sugerencias (Requieren Aprobación)</span>
                   </div>
                   {msg.suggestions.map((suggestion) => (
@@ -477,12 +466,8 @@ export function ChatPanelCopilot({
         {isProcessing && (
           <div className="group flex gap-4 max-w-3xl mx-auto animate-in slide-in-from-bottom-2 duration-500">
             {/* Avatar */}
-            <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-medium select-none mt-1 shadow-sm bg-white p-1">
-              <img
-                src={altiaIconSvg}
-                alt="ALTIA"
-                className="w-6 h-6 object-contain"
-              />
+            <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-medium select-none mt-1 shadow-sm bg-primary text-primary-foreground">
+              <Sparkles size={14} />
             </div>
 
             {/* Message Content */}
@@ -639,9 +624,9 @@ export function ChatPanelCopilot({
                           key={i}
                           className="w-1.5 rounded-full bg-gradient-to-t from-indigo-500 via-purple-500 to-rose-500 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.4)]"
                           style={{
-                            height: `${Math.max(40, Math.random() * 100)}%`, // Initial random height
-                            animationDuration: `${0.6 + Math.random() * 0.4}s`,
-                            animationDelay: `${i * 0.05}s`
+                            height: `${Math.max(40, Math.random() * 100)}%`,
+                            animationDuration: `${1.2 + Math.random() * 0.8}s`,
+                            animationDelay: `${i * 0.08}s`
                           }}
                         />
                       ))
@@ -685,32 +670,28 @@ export function ChatPanelCopilot({
 
                 {/* Right: Actions (Pause / Finalize) */}
                 {(isRecording || isPaused) && (
-                  <div className="flex items-center gap-2">
-                    {/* Pause / Resume Button */}
+                  <div className="flex items-center gap-1.5">
+                    {/* Pause / Resume Icon Button */}
                     <button
                       onClick={isPaused ? toggleRecording : onPauseRecording}
                       className={cn(
-                        "group flex items-center gap-2 px-3 py-2 border rounded-lg transition-all",
+                        "p-2 rounded-lg transition-all",
                         isPaused
-                          ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-100 hover:border-emerald-200"
-                          : "bg-amber-50 hover:bg-amber-100 border-amber-100 hover:border-amber-200"
+                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200"
+                          : "bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200"
                       )}
+                      title={isPaused ? 'Reanudar' : 'Pausar'}
                     >
-                      <span className={cn(
-                        "text-xs font-bold uppercase tracking-widest",
-                        isPaused ? "text-emerald-700/80 group-hover:text-emerald-700" : "text-amber-700/80 group-hover:text-amber-700"
-                      )}>
-                        {isPaused ? 'Reanudar' : 'Pausar'}
-                      </span>
+                      {isPaused ? <Play size={16} /> : <Pause size={16} />}
                     </button>
 
-                    {/* Finalize Button - Now calls onFinalizeRecording */}
+                    {/* Finalize Icon Button */}
                     <button
                       onClick={onFinalizeRecording || onStopRecordingAndSend}
-                      className="group flex items-center gap-2 px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-100 hover:border-rose-200 rounded-lg transition-all"
+                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg transition-all"
+                      title="Finalizar grabación"
                     >
-                      <span className="text-xs font-bold text-rose-600 group-hover:text-rose-700 uppercase tracking-widest">Finalizar</span>
-                      <div className="w-2 h-2 rounded-sm bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.6)] group-hover:scale-125 transition-transform" />
+                      <Square size={14} fill="currentColor" />
                     </button>
                   </div>
                 )}
@@ -754,18 +735,17 @@ export function ChatPanelCopilot({
                   <>
                     <button
                       onClick={onPauseRecording}
-                      className="p-2 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors flex items-center gap-2 border border-amber-200"
+                      className="p-2 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
                       title="Pausar y Procesar"
                     >
-                      <span className="text-xs font-semibold">Pausar</span>
+                      <Pause size={16} />
                     </button>
                     <button
                       onClick={onFinalizeRecording || onStopRecordingAndSend}
-                      className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors flex items-center gap-2 border border-rose-200 animate-pulse"
+                      className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
                       title="Finalizar y Guardar"
                     >
-                      <div className="w-3 h-3 bg-rose-600 rounded-sm" />
-                      <span className="text-xs font-bold">Finalizar</span>
+                      <Square size={14} fill="currentColor" />
                     </button>
                   </>
                 ) : (

@@ -746,7 +746,7 @@ function WeekView({
 
     return {
       top: Math.max(0, top),
-      height: Math.max(slotHeight * 0.5, height) // Minimum height for visibility
+      height: Math.max(slotHeight * 0.8, height) // Increased minimum height for better content visibility
     }
   }
 
@@ -812,11 +812,25 @@ function WeekView({
 
     // Calculate layout dimensions using CSS percentages for responsive design
     const totalColumns = columns.length
-    const totalPadding = 4 // Total horizontal padding in pixels
-    const columnGap = totalColumns > 1 ? 2 : 0 // Gap between columns
-    const availableWidth = 100 - (totalPadding / 10) // Convert px to approximate percentage
-    const columnWidth = totalColumns > 1 ? (availableWidth - (columnGap * (totalColumns - 1))) / totalColumns : availableWidth
-    const columnSpacing = columnGap
+    const totalPaddingPx = 8 // Total horizontal padding in pixels (4px left + 4px right)
+    const columnGapPx = totalColumns > 1 ? 4 : 0 // Gap between columns in pixels
+
+    // Calculate available width more accurately
+    // For single appointments, use more width; for multiple, distribute evenly
+    let columnWidth: number
+    let columnSpacing: number
+
+    if (totalColumns === 1) {
+      // Single appointment gets almost full width
+      columnWidth = 95
+      columnSpacing = 0
+    } else {
+      // Multiple appointments need to share space
+      const availableWidth = 92
+      const totalGap = (totalColumns - 1) * 2 // 2% gap between columns
+      columnWidth = (availableWidth - totalGap) / totalColumns
+      columnSpacing = 2
+    }
 
     // Assign layout to each appointment
     const result: Array<{
@@ -827,14 +841,21 @@ function WeekView({
 
     columns.forEach((column, columnIndex) => {
       column.appointments.forEach(apt => {
-        // Calculate left position as percentage
-        const leftPercentage = (columnIndex * (columnWidth + columnSpacing)) + 2
+        // Calculate left position as percentage with better spacing
+        const leftMargin = totalColumns === 1 ? 2 : 4 // More margin for multiple appointments
+        const leftPercentage = leftMargin + (columnIndex * (columnWidth + columnSpacing))
+
+        // Ensure the appointment doesn't exceed the container width
+        const maxLeft = 96 - columnWidth
+        const finalLeft = Math.min(leftPercentage, maxLeft)
+        const finalWidth = Math.min(columnWidth, 96 - finalLeft)
+
         result.push({
           appointment: apt.appointment,
           position: apt.position,
           layout: {
-            left: leftPercentage,
-            width: columnWidth
+            left: finalLeft,
+            width: finalWidth
           }
         })
       })
@@ -1094,29 +1115,46 @@ function WeekView({
                                 ? '0 1px 3px rgba(0, 0, 0, 0.08)'
                                 : '0 2px 4px rgba(25, 118, 210, 0.08), 0 1px 2px rgba(25, 118, 210, 0.06)',
                               // Typography and spacing - Outlook-style padding
-                              padding: '6px 8px', // Balanced padding
-                              fontSize: '12px', // Increased for better readability
-                              fontWeight: '600', // Semibold
-                              lineHeight: '1.4', // Better line height
+                              padding: '6px 8px', // Balanced padding for content visibility
+                              fontSize: '11px', // Optimized for readability in small spaces
+                              fontWeight: '500', // Medium weight for better readability
+                              lineHeight: '1.3', // Compact line height to fit more content
                               overflow: 'hidden',
                               opacity: isPastAppointment ? 0.7 : isCancelledOrNoShow ? 0.85 : 1,
                             }}
                             onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
                           >
-                            <div className="flex items-center space-x-1">
-                              {appointment.type === 'telemedicine' && (
-                                <Video className="h-3 w-3" />
-                              )}
-                              <span className="truncate">
-                                {appointment.patientName}
-                              </span>
-                            </div>
-                            {/* Status indicator for past appointments */}
-                            {isPastAppointment && !isCancelledOrNoShow && (
-                              <div className="text-[9px] text-gray-500 mt-0.5">
-                                {appointment.status === 'fulfilled' ? 'Atendida' : 'No atendida'}
+                            {/* Main appointment info */}
+                            <div className="space-y-1 min-h-0 overflow-hidden">
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="text-xs font-semibold text-blue-800 flex-shrink-0">
+                                  {format(new Date(appointment.start), 'HH:mm')}
+                                </div>
+                                {appointment.type === 'telemedicine' && (
+                                  <Video className="h-3 w-3 flex-shrink-0 ml-1" />
+                                )}
                               </div>
-                            )}
+                              <div className="text-xs font-medium truncate leading-tight">
+                                {appointment.patientName}
+                              </div>
+                              {appointment.reason && (
+                                <div className="text-[10px] text-gray-600 truncate leading-tight">
+                                  {appointment.reason}
+                                </div>
+                              )}
+                              {/* Status indicator for past appointments */}
+                              {isPastAppointment && !isCancelledOrNoShow && (
+                                <div className="text-[9px] text-gray-500 leading-tight">
+                                  {appointment.status === 'fulfilled' ? 'Atendida' : 'No atendida'}
+                                </div>
+                              )}
+                              {/* Status indicator for cancelled appointments */}
+                              {isCancelledOrNoShow && (
+                                <div className="text-[9px] text-red-600 leading-tight">
+                                  {appointment.status === 'cancelled' ? 'Cancelada' : 'No asistió'}
+                                </div>
+                              )}
+                            </div>
                           </button>
                         )
                       })

@@ -349,7 +349,7 @@ class RealTimeProcessor {
         const now = new Date()
         const unprocessed = this.buffer.filter(item => {
             return !item.processed &&
-                   (now.getTime() - item.timestamp.getTime()) > this.BUFFER_TIMEOUT
+                (now.getTime() - item.timestamp.getTime()) > this.BUFFER_TIMEOUT
         })
 
         if (unprocessed.length === 0) return ''
@@ -584,16 +584,8 @@ export default function useMedicalCopilot(options: UseMedicalCopilotOptions = {}
         lastProcessedInputRef.current = normalizedInput
 
         try {
-            // Add user message to chat
-            const userMessage: ChatMessage = {
-                id: `user_${Date.now()}`,
-                role: 'user',
-                content: normalizedInput,
-                timestamp: new Date(),
-                type: 'general'
-            }
-
-            setMessages(prev => [...prev, userMessage])
+            // DON'T add user message yet - wait until we know if it's noise or medical content
+            // This prevents showing raw transcription for filtered noise (same as original)
 
             // Initialize AI service with API key
             const aiService = getAIFHIRService(apiKey)
@@ -1135,13 +1127,38 @@ export default function useMedicalCopilot(options: UseMedicalCopilotOptions = {}
         realTimeProcessor.clearBuffer()
     }, [processTranscriptBatch])
 
-    // Enhanced message management
-    const sendMessage = useCallback(async (text?: string) => {
+    // Enhanced message management — matches original sendMessage pattern
+    const sendMessage = useCallback(async (text?: string, options?: { silentMode?: boolean }) => {
         const messageText = text || inputText
         if (!messageText.trim()) return
 
+        // silentMode: When true, suppress user message display (used for automatic streaming)
+        const silentMode = options?.silentMode ?? false
+
         setInputText('') // Clear input immediately for better UX
-        await processSmartInput(messageText, 'manual')
+
+        // Add user message optimistically BEFORE processing (so it appears before assistant response)
+        // Will be removed if AI classifies as noise
+        let userMessageId: string | null = null
+        if (!silentMode) {
+            userMessageId = `user_${Date.now()}`
+            const userMessage: ChatMessage = {
+                id: userMessageId,
+                role: 'user',
+                content: messageText,
+                timestamp: new Date(),
+                type: 'general'
+            }
+            setMessages(prev => [...prev, userMessage])
+        }
+
+        // Process with AI to determine if it's noise or medical content
+        const result = await processSmartInput(messageText, 'manual')
+
+        // If noise was detected, remove the optimistically-added user message
+        if (result?.type === 'noise' && userMessageId) {
+            setMessages(prev => prev.filter(m => m.id !== userMessageId))
+        }
     }, [inputText, processSmartInput])
 
     // Generate contextual clinical alerts (Advisor) - exactly as original
