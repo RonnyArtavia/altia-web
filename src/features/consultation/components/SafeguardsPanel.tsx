@@ -10,14 +10,7 @@ interface SafeguardsPanelProps {
 
 export function SafeguardsPanel({ status, alerts }: SafeguardsPanelProps) {
     if (status === 'safe' && alerts.length === 0) {
-        // Hidden when safe to avoid noise, or show a subtle indicator?
-        // Let's show a subtle indicator that the "Guard" is active
-        return (
-            <div className="absolute -top-8 right-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-100/50 opacity-60 transition-opacity hover:opacity-100">
-                <ShieldCheck size={12} className="text-emerald-500" />
-                <span className="text-[10px] font-medium text-emerald-600">Guardia Activa</span>
-            </div>
-        );
+        return null;
     }
 
     // Styles based on severity

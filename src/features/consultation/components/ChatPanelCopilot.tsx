@@ -189,7 +189,11 @@ export function ChatPanelCopilot({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+      const scrollH = textareaRef.current.scrollHeight;
+      const maxH = 200;
+      textareaRef.current.style.height = Math.min(scrollH, maxH) + 'px';
+      // Only show scrollbar when content exceeds max height
+      textareaRef.current.style.overflowY = scrollH > maxH ? 'auto' : 'hidden';
     }
   }, [inputText]);
 
@@ -609,89 +613,98 @@ export function ChatPanelCopilot({
             )}
 
 
-            {/* Recording / Preprocessing Overlay - Futuristic "Sci-Fi" Waveform */}
+            {/* Recording / Preprocessing Overlay */}
             {(isRecording || isPaused || isPreprocessing) && (
-              <div className="absolute inset-0 bg-white/90 backdrop-blur-xl rounded-2xl z-20 flex items-center justify-between px-6 border border-indigo-100 shadow-lg transition-all duration-300">
+              <div className="absolute inset-0 bg-white/92 backdrop-blur-lg rounded-2xl z-20 flex items-center justify-between px-5 border border-slate-200/80 shadow-sm transition-all duration-500">
 
-                {/* Left: Dynamic Waveform & Status */}
-                <div className="flex items-center gap-4">
-                  {/* Digital Waveform Visualizer */}
-                  <div className="flex items-center gap-[3px] h-8">
+                {/* Left: Waveform & Status */}
+                <div className="flex items-center gap-3.5">
+                  {/* Equalizer Visualizer */}
+                  <div className="flex items-end gap-[2.5px] h-7 w-8">
                     {isRecording ? (
-                      // Recording: Active Voice Bars
-                      [...Array(7)].map((_, i) => (
+                      // Recording: Smooth equalizer bars with staggered organic motion
+                      [
+                        'animate-eq-1',
+                        'animate-eq-2',
+                        'animate-eq-3',
+                        'animate-eq-4',
+                        'animate-eq-5',
+                      ].map((anim, i) => (
                         <div
                           key={i}
-                          className="w-1.5 rounded-full bg-gradient-to-t from-indigo-500 via-purple-500 to-rose-500 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.4)]"
-                          style={{
-                            height: `${Math.max(40, Math.random() * 100)}%`,
-                            animationDuration: `${1.2 + Math.random() * 0.8}s`,
-                            animationDelay: `${i * 0.08}s`
-                          }}
+                          className={cn(
+                            'w-[3px] rounded-full bg-primary-500/80 transition-colors duration-300',
+                            anim
+                          )}
+                          style={{ animationDelay: `${i * 0.15}s` }}
                         />
                       ))
                     ) : isPaused ? (
-                      // Paused: Static Amber Bars
-                      [...Array(7)].map((_, i) => (
+                      // Paused: Low static bars
+                      [...Array(5)].map((_, i) => (
                         <div
                           key={i}
-                          className="w-1.5 rounded-full bg-amber-400/60"
-                          style={{ height: '40%' }}
+                          className="w-[3px] rounded-full bg-amber-400/50 transition-all duration-700"
+                          style={{ height: '30%' }}
                         />
                       ))
                     ) : (
-                      // Cleaning: Scanning Line / Processing Bars
-                      [...Array(7)].map((_, i) => (
+                      // Processing: Gentle sweep animation
+                      [...Array(5)].map((_, i) => (
                         <div
                           key={i}
-                          className="w-1.5 h-full rounded-full bg-cyan-400/20"
-                        >
-                          <div className="w-full bg-cyan-500 rounded-full animate-[ping_1.5s_ease-out_infinite]" style={{ height: '30%', animationDelay: `${i * 0.1}s` }} />
-                        </div>
+                          className="w-[3px] rounded-full bg-primary-400/60 animate-process-sweep"
+                          style={{ animationDelay: `${i * 0.25}s` }}
+                        />
                       ))
                     )}
                   </div>
 
-                  {/* Tech Status Text */}
-                  <div className="flex flex-col">
-                    <span className={cn(
-                      "text-sm font-bold bg-clip-text text-transparent tracking-wide uppercase",
-                      isPaused
-                        ? "bg-gradient-to-r from-amber-500 to-orange-600"
-                        : "bg-gradient-to-r from-indigo-600 to-purple-600"
-                    )}>
-                      {isPaused ? 'PAUSADO' : (isRecording ? 'ESCUCHANDO' : 'Procesando Datos')}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono tracking-widest">
-                      {isPaused ? 'DICTADO DETENIDO' : (isRecording ? 'MIC: ACTIVO // 44.1kHz' : 'AI: ALTIA')}
-                    </span>
+                  {/* Recording indicator dot + Status Text */}
+                  <div className="flex items-center gap-2.5">
+                    {isRecording && (
+                      <span className="w-2 h-2 rounded-full bg-red-400 animate-breathe" />
+                    )}
+                    <div className="flex flex-col">
+                      <span className={cn(
+                        "text-[13px] font-semibold tracking-[-0.01em]",
+                        isPaused
+                          ? "text-amber-600"
+                          : isRecording
+                            ? "text-slate-700"
+                            : "text-slate-500"
+                      )}>
+                        {isPaused ? 'Pausado' : (isRecording ? 'Escuchando' : 'Procesando...')}
+                      </span>
+                      <span className="text-[10px] text-slate-400 tracking-wide">
+                        {isPaused ? 'Dictado detenido' : (isRecording ? 'Micrófono activo' : 'Altia AI')}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Right: Actions (Pause / Finalize) */}
                 {(isRecording || isPaused) && (
                   <div className="flex items-center gap-1.5">
-                    {/* Pause / Resume Icon Button */}
                     <button
                       onClick={isPaused ? toggleRecording : onPauseRecording}
                       className={cn(
-                        "p-2 rounded-lg transition-all",
+                        "p-2 rounded-lg transition-all duration-200",
                         isPaused
-                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200"
-                          : "bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200"
+                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200/80"
+                          : "bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200/80"
                       )}
                       title={isPaused ? 'Reanudar' : 'Pausar'}
                     >
-                      {isPaused ? <Play size={16} /> : <Pause size={16} />}
+                      {isPaused ? <Play size={15} /> : <Pause size={15} />}
                     </button>
 
-                    {/* Finalize Icon Button */}
                     <button
                       onClick={onFinalizeRecording || onStopRecordingAndSend}
-                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg transition-all"
+                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200/80 rounded-lg transition-all duration-200"
                       title="Finalizar grabación"
                     >
-                      <Square size={14} fill="currentColor" />
+                      <Square size={13} fill="currentColor" />
                     </button>
                   </div>
                 )}
@@ -706,7 +719,7 @@ export function ChatPanelCopilot({
               // ENABLED ALWAYS so user can start consultation by typing
               // disabled={!inConsultation}
               placeholder={inConsultation ? "Escriba o dicte la nota médica" : "Escriba o dicte la nota médica"}
-              className="w-full bg-transparent border-0 px-4 py-3 text-[15px] resize-none max-h-[200px] focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 leading-relaxed scrollbar-thin scrollbar-thumb-border"
+              className="w-full bg-transparent border-0 px-4 py-3 text-[15px] resize-none max-h-[200px] focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 leading-relaxed overflow-y-hidden"
               rows={1}
             />
 

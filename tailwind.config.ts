@@ -118,6 +118,13 @@ const config: Config = {
         'stagger-2': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both',
         'stagger-3': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both',
         'stagger-4': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both',
+        'eq-1': 'eqBar1 2.8s ease-in-out infinite',
+        'eq-2': 'eqBar2 3.2s ease-in-out infinite',
+        'eq-3': 'eqBar3 2.5s ease-in-out infinite',
+        'eq-4': 'eqBar4 3.6s ease-in-out infinite',
+        'eq-5': 'eqBar5 2.9s ease-in-out infinite',
+        'breathe': 'breathe 3s ease-in-out infinite',
+        'process-sweep': 'processSweep 2s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -155,6 +162,49 @@ const config: Config = {
         glow: {
           '0%': { boxShadow: '0 0 5px rgba(13, 148, 136, 0.2)' },
           '100%': { boxShadow: '0 0 20px rgba(13, 148, 136, 0.4)' },
+        },
+        // Smooth equalizer bars for recording waveform
+        eqBar1: {
+          '0%, 100%': { height: '20%' },
+          '25%': { height: '80%' },
+          '50%': { height: '45%' },
+          '75%': { height: '95%' },
+        },
+        eqBar2: {
+          '0%, 100%': { height: '55%' },
+          '20%': { height: '30%' },
+          '45%': { height: '90%' },
+          '70%': { height: '40%' },
+        },
+        eqBar3: {
+          '0%, 100%': { height: '40%' },
+          '30%': { height: '95%' },
+          '55%': { height: '25%' },
+          '80%': { height: '70%' },
+        },
+        eqBar4: {
+          '0%, 100%': { height: '70%' },
+          '15%': { height: '35%' },
+          '40%': { height: '85%' },
+          '65%': { height: '50%' },
+          '85%': { height: '95%' },
+        },
+        eqBar5: {
+          '0%, 100%': { height: '30%' },
+          '20%': { height: '75%' },
+          '50%': { height: '50%' },
+          '75%': { height: '90%' },
+        },
+        // Gentle breathing pulse for recording dot
+        breathe: {
+          '0%, 100%': { opacity: '1', transform: 'scale(1)' },
+          '50%': { opacity: '0.5', transform: 'scale(0.85)' },
+        },
+        // Processing shimmer sweep
+        processSweep: {
+          '0%': { height: '15%', opacity: '0.4' },
+          '50%': { height: '85%', opacity: '1' },
+          '100%': { height: '15%', opacity: '0.4' },
         },
       },
     },
