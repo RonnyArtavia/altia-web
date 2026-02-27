@@ -469,7 +469,7 @@ export function ClinicalSnapshot({
           <div style={{ margin: "0 0 20px", padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "4px" }}>
             <div className="flex items-start gap-3 text-red-800 text-sm font-medium">
               <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-600" />
-              <span className="break-words">{data.alerts[0]}</span>
+              <span className="break-words">{typeof data.alerts[0] === 'string' ? data.alerts[0] : ((data.alerts[0] as any)?.message || (data.alerts[0] as any)?.text || (data.alerts[0] as any)?.title || JSON.stringify(data.alerts[0]))}</span>
             </div>
           </div>
         )}
