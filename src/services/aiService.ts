@@ -408,6 +408,38 @@ export class AIFHIRService {
           });
         }
 
+        // Convert family history
+        if (parsed.familyHistory && Array.isArray(parsed.familyHistory)) {
+          parsed.familyHistory.forEach((item: any, index: number) => {
+            convertedFhir.push({
+              id: `familyHistory_${Date.now()}_${index}`,
+              type: 'familyHistory',
+              status: 'active',
+              text: item.condition || '',
+              display: item.condition || '',
+              details: item.relationship ? `Familiar: ${item.relationship}` : '',
+              relationship: item.relationship || '',
+              notes: item.note || ''
+            });
+          });
+        }
+
+        // Convert personal history
+        if (parsed.personalHistory && Array.isArray(parsed.personalHistory)) {
+          parsed.personalHistory.forEach((item: any, index: number) => {
+            convertedFhir.push({
+              id: `personalHistory_${Date.now()}_${index}`,
+              type: 'personalHistory',
+              status: 'active',
+              text: item.condition || '',
+              display: item.condition || '',
+              details: item.type ? `Tipo: ${item.type}` : '',
+              category: item.type || 'medical',
+              notes: item.note || ''
+            });
+          });
+        }
+
         console.log('🔄 Converting simplified NOTA_MEDICA format:', {
           soapSubjective: parsed.soap?.subjective,
           soapObjective: parsed.soap?.objective,

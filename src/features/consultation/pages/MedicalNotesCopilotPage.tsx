@@ -21,7 +21,8 @@ import {
   TestTube,
   Pill,
   Heart,
-  Settings
+  Settings,
+  History,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ import { MainContentPanel } from '../components/MainContentPanel';
 import { SOAPCard } from '../components/SOAPCard';
 import { SafeguardsPanel } from '../components/SafeguardsPanel';
 import { useWebSpeechRecognition } from '../hooks/useWebSpeechRecognition';
+import { changeAppointmentStatus } from '@/features/schedule/services/appointmentService';
 
 interface MedicalNotesCopilotPageProps { }
 
@@ -104,6 +106,8 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
   const [searchParams] = useSearchParams();
   const appointmentId = searchParams.get('appointmentId');
   const patientId = searchParams.get('patientId');
+  const consultationMode = (searchParams.get('mode') || 'normal') as 'normal' | 'history';
+  const isHistoryMode = consultationMode === 'history';
   const { userData } = useAuthStore();
   const { patients, loadPatients } = usePatientStore();
 
@@ -577,31 +581,47 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     setIsPaused(false);
   };
 
-  // Handle sending messages — combines buffer + typed text (same as original)
-  // silentMode: When true, suppress user message display (used for auto-flush streaming)
+  // Handle sending messages — combines buffer + typed text
+  // silentMode: When true, only send dictation buffer without touching inputText (auto-flush streaming)
   const handleSendMessage = useCallback(async (silentMode: boolean = false) => {
     const bufferText = dictationBuffer.current;
-    const combinedVoice = bufferText ? bufferText.trim() : '';
-    const finalText = `${inputText} ${combinedVoice}`.trim();
 
-    if (!finalText) return;
+    if (silentMode) {
+      // Auto-flush: only send dictation buffer, preserve inputText for the doctor
+      const voiceText = bufferText ? bufferText.trim() : '';
+      if (!voiceText) return;
 
-    // Start consultation on first message
-    if (!inConsultation && finalText) {
-      console.log('🚀 Starting consultation...');
-      setInConsultation(true);
-      setConsultationStartTime(Date.now());
+      if (!inConsultation) {
+        setInConsultation(true);
+        setConsultationStartTime(Date.now());
+      }
+
+      // Only clear dictation buffer, NOT inputText
+      dictationBuffer.current = '';
+      setBufferCharCount(0);
+      resetTranscript();
+
+      await sendMessage(voiceText, { silentMode });
+    } else {
+      // Manual send: combine typed text + buffer
+      const combinedVoice = bufferText ? bufferText.trim() : '';
+      const finalText = `${inputText} ${combinedVoice}`.trim();
+
+      if (!finalText) return;
+
+      if (!inConsultation) {
+        setInConsultation(true);
+        setConsultationStartTime(Date.now());
+      }
+
+      // Clear everything on explicit send
+      setInputText('');
+      dictationBuffer.current = '';
+      setBufferCharCount(0);
+      resetTranscript();
+
+      await sendMessage(finalText, { silentMode });
     }
-
-    // Clear everything
-    setInputText('');
-    dictationBuffer.current = '';
-    setBufferCharCount(0);
-    resetTranscript();
-
-    // Send the combined text directly (pass as argument to avoid React state race)
-    console.log('📨 Sending message:', finalText);
-    await sendMessage(finalText, { silentMode });
   }, [inputText, inConsultation, resetTranscript, sendMessage]);
 
   // Ref for latest handleSendMessage (for streaming auto-flush)
@@ -610,22 +630,35 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     sendRef.current = handleSendMessage;
   }, [handleSendMessage]);
 
-  // Handle stop recording and send (same as original)
+  // Handle stop recording and send
   // silentMode defaults to true for streaming, false for finalize
   const handleStopRecordingAndSend = useCallback(async (silentMode: boolean = true) => {
     const bufferText = dictationBuffer.current;
     const combinedVoice = bufferText
       ? `${bufferText} ${interimTranscript || ''}`.trim()
       : (interimTranscript || '').trim();
-    const finalText = `${inputText} ${combinedVoice}`.trim();
 
     // Stop recording
     stopRecording();
     setIsPaused(false);
 
-    // Send if there's text
-    if (finalText) {
-      // Start consultation on first message
+    if (silentMode) {
+      // Auto-flush: only send voice content, preserve inputText
+      if (!combinedVoice) return;
+
+      if (!inConsultation) {
+        setInConsultation(true);
+        setConsultationStartTime(Date.now());
+      }
+      dictationBuffer.current = '';
+      setBufferCharCount(0);
+      resetTranscript();
+      await sendMessage(combinedVoice, { silentMode });
+    } else {
+      // Explicit finalize: combine typed + voice
+      const finalText = `${inputText} ${combinedVoice}`.trim();
+      if (!finalText) return;
+
       if (!inConsultation) {
         setInConsultation(true);
         setConsultationStartTime(Date.now());
@@ -634,7 +667,6 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
       dictationBuffer.current = '';
       setBufferCharCount(0);
       resetTranscript();
-      // Send via copilot (pass text directly to avoid React state race)
       await sendMessage(finalText, { silentMode });
     }
   }, [inputText, interimTranscript, stopRecording, resetTranscript, sendMessage, inConsultation]);
@@ -807,7 +839,33 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
 
   // Desktop layout
   return (
-    <div className="h-screen flex bg-gray-50 overflow-hidden">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+      {/* History mode banner */}
+      {isHistoryMode && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm shrink-0">
+          <History className="h-4 w-4" />
+          <span className="font-medium">Modo historial — Solo lectura</span>
+          <span className="text-amber-600">Navegando el historial del paciente sin consulta activa</span>
+          {appointmentId && (
+            <button
+              className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+              onClick={async () => {
+                if (!userData?.uid || !appointmentId) return
+                try {
+                  await changeAppointmentStatus(appointmentId, userData.organizationId || '', 'in-progress', userData.uid, 'doctor')
+                } catch { }
+                const newParams = new URLSearchParams(searchParams)
+                newParams.delete('mode')
+                navigate(`?${newParams.toString()}`, { replace: true })
+              }}
+            >
+              <Stethoscope className="h-3.5 w-3.5" />
+              Iniciar atención
+            </button>
+          )}
+        </div>
+      )}
+    <div className="flex flex-1 overflow-hidden">
       {/* Main Content */}
       <div className="flex-1 min-w-0">
         <MainContentPanel
@@ -839,19 +897,19 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           inputText={inputText}
           setInputText={setInputText}
           onSendMessage={handleSendMessage}
-          isRecording={isRecording}
-          toggleRecording={handleStartRecording}
-          onStopRecordingAndSend={handleStopRecordingAndSend}
-          onPauseRecording={handlePauseRecording}
-          onFinalizeRecording={handleFinalizeRecording}
+          isRecording={isHistoryMode ? false : isRecording}
+          toggleRecording={isHistoryMode ? async () => {} : handleStartRecording}
+          onStopRecordingAndSend={isHistoryMode ? async () => {} : handleStopRecordingAndSend}
+          onPauseRecording={isHistoryMode ? async () => {} : handlePauseRecording}
+          onFinalizeRecording={isHistoryMode ? async () => {} : handleFinalizeRecording}
           isPaused={isPaused}
           interimTranscript={interimTranscript}
-          speechSupported={speechSupported}
+          speechSupported={isHistoryMode ? false : speechSupported}
           bufferCharCount={bufferCharCount}
           onPlayAudio={() => { }}
           isPlayingAudio={false}
           isProcessing={aiProcessing}
-          inConsultation={inConsultation}
+          inConsultation={isHistoryMode ? false : inConsultation}
           onFinalize={finalizeConsultation}
           elapsedTime={elapsedTime}
           onApproveSuggestion={handleApproveSuggestion}
@@ -859,6 +917,7 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           patientInfo={patientRecord ? `${patientRecord.age} años • ${patientRecord.gender}` : undefined}
         />
       </div>
+    </div>
     </div>
   );
 }

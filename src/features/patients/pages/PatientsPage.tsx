@@ -133,7 +133,7 @@ export default function PatientsPage() {
         start: now,
         end: end,
         type: 'in-person',
-        status: 'arrived',
+        status: 'in-progress',
         reason: 'Consulta inmediata desde lista de pacientes',
         description: 'Consulta iniciada desde la página de pacientes'
       })

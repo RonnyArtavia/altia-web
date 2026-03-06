@@ -20,6 +20,7 @@ import PatientEditPage from '@/features/patients/pages/PatientEditPage'
 import AgendaPage from '@/features/schedule/pages/AgendaPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import MedicalNotesCopilotPage from '@/features/consultation/pages/MedicalNotesCopilotPage'
+import TodayPatientsPage from '@/features/schedule/pages/TodayPatientsPage'
 
 function LoadingScreen() {
   return (
@@ -73,6 +74,7 @@ function App() {
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id/edit" element={<PatientEditPage />} />
                 <Route path="agenda" element={<AgendaPage />} />
+                <Route path="today-patients" element={<TodayPatientsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/doctor/dashboard" replace />} />
               </Routes>
@@ -92,6 +94,7 @@ function App() {
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id/edit" element={<PatientEditPage />} />
                 <Route path="agenda" element={<AgendaPage />} />
+                <Route path="today-patients" element={<TodayPatientsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/assistant/dashboard" replace />} />
               </Routes>

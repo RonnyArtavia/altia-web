@@ -33,7 +33,7 @@ export type IPSResourceType =
 
 export interface FHIRPlanItem {
   id: string
-  type: 'condition' | 'medication' | 'allergy' | 'procedure' | 'observation' | 'diagnostic' | 'labResult' | 'imagingStudy' | 'labOrder' | 'imagingOrder' | 'device' | 'order'
+  type: 'condition' | 'medication' | 'allergy' | 'procedure' | 'observation' | 'diagnostic' | 'labResult' | 'imagingStudy' | 'labOrder' | 'imagingOrder' | 'device' | 'order' | 'familyHistory' | 'personalHistory'
   status: 'active' | 'inactive' | 'completed' | 'cancelled'
   text: string
   display?: string
@@ -46,6 +46,7 @@ export interface FHIRPlanItem {
   warningLevel?: 'info' | 'warning' | 'critical'
   category?: string
   notes?: string
+  relationship?: string
   // Legacy compatibility
   action?: 'Add' | 'Modify' | 'Remove'
   flag?: 'high' | 'low' | 'critical' | 'abnormal'

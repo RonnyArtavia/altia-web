@@ -613,98 +613,52 @@ export function ChatPanelCopilot({
             )}
 
 
-            {/* Recording / Preprocessing Overlay */}
+            {/* Recording / Preprocessing Indicator Bar (compact, above textarea) */}
             {(isRecording || isPaused || isPreprocessing) && (
-              <div className="absolute inset-0 bg-white/92 backdrop-blur-lg rounded-2xl z-20 flex items-center justify-between px-5 border border-slate-200/80 shadow-sm transition-all duration-500">
-
-                {/* Left: Waveform & Status */}
-                <div className="flex items-center gap-3.5">
-                  {/* Equalizer Visualizer */}
-                  <div className="flex items-end gap-[2.5px] h-7 w-8">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-slate-50/60">
+                <div className="flex items-center gap-2.5">
+                  {/* Mini equalizer */}
+                  <div className="flex items-end gap-[2px] h-4 w-6">
                     {isRecording ? (
-                      // Recording: Smooth equalizer bars with staggered organic motion
-                      [
-                        'animate-eq-1',
-                        'animate-eq-2',
-                        'animate-eq-3',
-                        'animate-eq-4',
-                        'animate-eq-5',
-                      ].map((anim, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            'w-[3px] rounded-full bg-primary-500/80 transition-colors duration-300',
-                            anim
-                          )}
-                          style={{ animationDelay: `${i * 0.15}s` }}
-                        />
+                      ['animate-eq-1','animate-eq-2','animate-eq-3','animate-eq-4','animate-eq-5'].map((anim, i) => (
+                        <div key={i} className={cn('w-[2.5px] rounded-full bg-primary-500/80', anim)} style={{ animationDelay: `${i * 0.15}s` }} />
                       ))
                     ) : isPaused ? (
-                      // Paused: Low static bars
                       [...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-[3px] rounded-full bg-amber-400/50 transition-all duration-700"
-                          style={{ height: '30%' }}
-                        />
+                        <div key={i} className="w-[2.5px] rounded-full bg-amber-400/50" style={{ height: '30%' }} />
                       ))
                     ) : (
-                      // Processing: Gentle sweep animation
                       [...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-[3px] rounded-full bg-primary-400/60 animate-process-sweep"
-                          style={{ animationDelay: `${i * 0.25}s` }}
-                        />
+                        <div key={i} className="w-[2.5px] rounded-full bg-primary-400/60 animate-process-sweep" style={{ animationDelay: `${i * 0.25}s` }} />
                       ))
                     )}
                   </div>
-
-                  {/* Recording indicator dot + Status Text */}
-                  <div className="flex items-center gap-2.5">
-                    {isRecording && (
-                      <span className="w-2 h-2 rounded-full bg-red-400 animate-breathe" />
-                    )}
-                    <div className="flex flex-col">
-                      <span className={cn(
-                        "text-[13px] font-semibold tracking-[-0.01em]",
-                        isPaused
-                          ? "text-amber-600"
-                          : isRecording
-                            ? "text-slate-700"
-                            : "text-slate-500"
-                      )}>
-                        {isPaused ? 'Pausado' : (isRecording ? 'Escuchando' : 'Procesando...')}
-                      </span>
-                      <span className="text-[10px] text-slate-400 tracking-wide">
-                        {isPaused ? 'Dictado detenido' : (isRecording ? 'Micrófono activo' : 'Altia AI')}
-                      </span>
-                    </div>
-                  </div>
+                  {isRecording && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-breathe" />}
+                  <span className={cn(
+                    "text-xs font-medium",
+                    isPaused ? "text-amber-600" : isRecording ? "text-slate-600" : "text-slate-400"
+                  )}>
+                    {isPaused ? 'Pausado' : isRecording ? 'Escuchando...' : 'Procesando...'}
+                  </span>
                 </div>
-
-                {/* Right: Actions (Pause / Finalize) */}
                 {(isRecording || isPaused) && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={isPaused ? toggleRecording : onPauseRecording}
                       className={cn(
-                        "p-2 rounded-lg transition-all duration-200",
-                        isPaused
-                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200/80"
-                          : "bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200/80"
+                        "p-1.5 rounded-md transition-all text-xs",
+                        isPaused ? "text-emerald-600 hover:bg-emerald-50" : "text-amber-600 hover:bg-amber-50"
                       )}
                       title={isPaused ? 'Reanudar' : 'Pausar'}
                     >
-                      {isPaused ? <Play size={15} /> : <Pause size={15} />}
+                      {isPaused ? <Play size={13} /> : <Pause size={13} />}
                     </button>
-
                     <button
                       onClick={onFinalizeRecording || onStopRecordingAndSend}
-                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200/80 rounded-lg transition-all duration-200"
+                      className="p-1.5 rounded-md text-rose-500 hover:bg-rose-50 transition-all"
                       title="Finalizar grabación"
                     >
-                      <Square size={13} fill="currentColor" />
+                      <Square size={11} fill="currentColor" />
                     </button>
                   </div>
                 )}

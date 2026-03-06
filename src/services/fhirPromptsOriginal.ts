@@ -108,6 +108,16 @@ TIPOS DE RECURSOS IPS (usar en campo 'type'):
 - "labResult" → Resultados de laboratorio (glucosa 120mg/dL, etc.)
 - "imagingStudy" → Resultados de estudios de imagen
 - "device" → Dispositivos médicos (marcapasos, prótesis, etc.)
+- "familyHistory" → Antecedentes familiares (padre con diabetes, madre hipertensa, etc.)
+- "personalHistory" → Antecedentes personales/quirúrgicos (apendicectomía, fracturas previas, tabaquismo, etc.)
+
+REGLA ANTECEDENTES (CRÍTICO):
+Cuando el médico mencione antecedentes familiares o personales, DEBES extraerlos como items FHIR:
+- Antecedentes FAMILIARES (type="familyHistory"): Incluir "display" (condición), "relationship" (padre/madre/hermano/abuelo/tío/hijo), "details" con el parentesco.
+  Ejemplo: "padre diabético" → {"type":"familyHistory","display":"Diabetes","relationship":"padre","details":"Familiar: padre","action":"Add"}
+- Antecedentes PERSONALES (type="personalHistory"): Incluir "display" (condición), "category" (surgical/medical/social), "details" con el tipo.
+  Ejemplo: "apendicectomía en 2015" → {"type":"personalHistory","display":"Apendicectomía 2015","category":"surgical","details":"Tipo: surgical","action":"Add"}
+- Estos antecedentes también deben registrarse en SOAP sección S (Subjetivo).
 
 IMPORTANTE:
 - Para "condition" (Diagnósticos):

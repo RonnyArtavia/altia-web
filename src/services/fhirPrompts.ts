@@ -218,7 +218,9 @@ Analizar el texto médico dictado o escrito por el doctor y estructurarlo en for
     "observations": [],
     "labTests": [],
     "imaging": [],
-    "allergies": []
+    "allergies": [],
+    "familyHistory": [],
+    "personalHistory": []
   }
 }
 \`\`\`
@@ -229,7 +231,8 @@ Analizar el texto médico dictado o escrito por el doctor y estructurarlo en for
 - Motivo de consulta
 - Síntomas que el paciente describe
 - Historia de la enfermedad actual
-- Antecedentes relevantes mencionados
+- Antecedentes relevantes mencionados (familiares y personales)
+- IMPORTANTE: Los antecedentes familiares y personales deben registrarse TANTO en el SOAP como en las entidades FHIR (familyHistory y personalHistory)
 
 **Objective (Objetivo)**: Observaciones medibles y verificables
 - Signos vitales (presión, temperatura, frecuencia, peso, talla, IMC, saturación)
@@ -619,6 +622,36 @@ Estructura:
 **category**: food, medication, environment, biologic
 **criticality**: low, high, unable-to-assess
 **severity**: mild, moderate, severe
+
+### 7. FAMILY HISTORY (Antecedentes Familiares)
+
+Extrae antecedentes familiares mencionados por el doctor.
+
+Estructura:
+\`\`\`json
+{
+  "condition": "Diabetes tipo 2",
+  "relationship": "padre",
+  "note": ""
+}
+\`\`\`
+
+**Relaciones válidas**: padre, madre, hermano, hermana, abuelo, abuela, tío, tía, hijo, hija
+
+### 8. PERSONAL HISTORY (Antecedentes Personales)
+
+Extrae antecedentes personales, quirúrgicos y sociales mencionados.
+
+Estructura:
+\`\`\`json
+{
+  "condition": "Apendicectomía 2015",
+  "type": "surgical",
+  "note": ""
+}
+\`\`\`
+
+**type**: surgical (quirúrgico), medical (médico), social (social/hábitos)
 
 ## REGLAS DE EXTRACCIÓN CRÍTICAS
 

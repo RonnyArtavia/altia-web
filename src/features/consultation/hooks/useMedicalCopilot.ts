@@ -1135,7 +1135,10 @@ export default function useMedicalCopilot(options: UseMedicalCopilotOptions = {}
         // silentMode: When true, suppress user message display (used for automatic streaming)
         const silentMode = options?.silentMode ?? false
 
-        setInputText('') // Clear input immediately for better UX
+        // Only clear inputText on explicit (non-silent) sends to preserve typed text during auto-flush
+        if (!silentMode) {
+            setInputText('')
+        }
 
         // Add user message optimistically BEFORE processing (so it appears before assistant response)
         // Will be removed if AI classifies as noise
