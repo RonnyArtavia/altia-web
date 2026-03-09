@@ -66,6 +66,7 @@ interface AppointmentData {
   description?: string
   specialty?: string
   organizationId: string
+  agendaId?: string
 }
 
 interface AppointmentDialogProps {
@@ -102,11 +103,11 @@ export function AppointmentDialog({
   const [selectedSlot, setSelectedSlot] = useState<string | null>(timeSlot || null)
   const [showPatientSelector, setShowPatientSelector] = useState(false)
 
-  const [selectedAgendaId, setSelectedAgendaId] = useState<string>('')
+  const [selectedAgendaId, setSelectedAgendaId] = useState<string>('none')
 
   // Dynamic duration: use agenda's defaultDuration if an agenda is selected
   const duration = useMemo(() => {
-    if (selectedAgendaId && agendas) {
+    if (selectedAgendaId && selectedAgendaId !== 'none' && agendas) {
       const agenda = agendas.find(a => a.id === selectedAgendaId)
       if (agenda) return agenda.defaultDuration
     }
@@ -124,16 +125,65 @@ export function AppointmentDialog({
   const { userData } = useAuthStore()
   const { createAppointment, updateAppointment } = useAppointmentMutations()
 
-  // Doctor schedule - using default schedule
-  const daySchedule = {
-    start: '08:00',
-    end: '18:00',
-    slotDuration: 30,
-    breakStart: '12:00',
-    breakEnd: '13:00'
-  }
+  // Get schedule from selected agenda or use a combined schedule from all agendas
+  const daySchedule = useMemo(() => {
+    if (selectedAgendaId && selectedAgendaId !== 'none' && agendas) {
+      const agenda = agendas.find(a => a.id === selectedAgendaId)
+      if (agenda) {
+        const dayOfWeek = appointmentDate.getDay()
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+        const dayName = dayNames[dayOfWeek] as keyof typeof agenda.schedule
+        const daySchedule = agenda.schedule[dayName]
 
-  // Show all time slots with availability based on doctor's schedule
+        if (daySchedule?.enabled) {
+          return {
+            start: daySchedule.start,
+            end: daySchedule.end,
+            slotDuration: 30,
+            breakStart: undefined,
+            breakEnd: undefined
+          }
+        }
+      }
+    }
+
+    // If no agenda selected or day not enabled, use combined schedule from all available agendas
+    if (agendas && agendas.length > 0) {
+      const dayOfWeek = appointmentDate.getDay()
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      const dayName = dayNames[dayOfWeek] as any
+
+      let earliestStart: string | null = null
+      let latestEnd: string | null = null
+
+      agendas.forEach(agenda => {
+        if (agenda.enabled && agenda.schedule?.[dayName]?.enabled) {
+          const daySchedule = agenda.schedule[dayName]
+          if (!earliestStart || daySchedule.start < earliestStart) {
+            earliestStart = daySchedule.start
+          }
+          if (!latestEnd || daySchedule.end > latestEnd) {
+            latestEnd = daySchedule.end
+          }
+        }
+      })
+
+      if (earliestStart && latestEnd) {
+        return {
+          start: earliestStart,
+          end: latestEnd,
+          slotDuration: 30,
+          breakStart: undefined,
+          breakEnd: undefined
+        }
+      }
+    }
+
+    // Fallback to null if no schedules available
+    return null
+  }, [selectedAgendaId, agendas, appointmentDate])
+
+  // Show all time slots with availability based on schedule
   const availableSlots = generateAllDayTimeSlots(daySchedule, 30)
 
   const isPending = createAppointment.isPending || updateAppointment.isPending
@@ -201,7 +251,7 @@ export function AppointmentDialog({
       setAppointmentType(appointment.type)
       setReason(appointment.reason || '')
       setDescription(appointment.description || '')
-      setSelectedAgendaId((appointment as any).agendaId || '')
+      setSelectedAgendaId((appointment as any).agendaId || 'none')
     } else if (appointmentRequest) {
       // Initialize form with appointment request data
       setSelectedPatient({
@@ -217,7 +267,7 @@ export function AppointmentDialog({
       setAppointmentType('in-person')
       setReason(appointmentRequest.reason || '')
       setDescription(appointmentRequest.description || '')
-      setSelectedAgendaId('')
+      setSelectedAgendaId('none')
     } else {
       // Reset form for new appointment
       setSelectedPatient(null)
@@ -228,9 +278,33 @@ export function AppointmentDialog({
       setAppointmentType('in-person')
       setReason('')
       setDescription('')
-      setSelectedAgendaId('')
+      setSelectedAgendaId('none')
     }
   }, [appointment, appointmentRequest, date, timeSlot])
+
+  // Auto-select agenda when creating new appointment
+  useEffect(() => {
+    if (!appointment && !appointmentRequest && agendas && agendas.length > 0 && selectedAgendaId === 'none') {
+      const dayOfWeek = appointmentDate.getDay()
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      const dayName = dayNames[dayOfWeek] as any
+      const appointmentTime = startTime
+
+      // Find the first agenda that covers the selected time and day
+      const suitableAgenda = agendas.find(agenda => {
+        if (!agenda.enabled || !agenda.schedule[dayName]?.enabled) return false
+        const daySchedule = agenda.schedule[dayName]
+        return appointmentTime >= daySchedule.start && appointmentTime < daySchedule.end
+      })
+
+      if (suitableAgenda) {
+        setSelectedAgendaId(suitableAgenda.id)
+      } else if (agendas.length === 1) {
+        // If only one agenda available, select it regardless
+        setSelectedAgendaId(agendas[0].id)
+      }
+    }
+  }, [appointment, appointmentRequest, agendas, selectedAgendaId, appointmentDate, startTime])
 
   const handleSave = async () => {
     if (!selectedPatient) {
@@ -257,7 +331,7 @@ export function AppointmentDialog({
       type: appointmentType,
       reason: reason,
       description: description,
-      ...(selectedAgendaId ? { agendaId: selectedAgendaId } : {}),
+      ...(selectedAgendaId && selectedAgendaId !== 'none' ? { agendaId: selectedAgendaId } : {}),
     }
 
     try {
@@ -465,7 +539,7 @@ export function AppointmentDialog({
                     <Select value={selectedAgendaId} onValueChange={setSelectedAgendaId}>
                       <SelectTrigger className="h-10 border-gray-300">
                         <div className="flex items-center gap-2 overflow-hidden">
-                          {selectedAgendaId && agendas.find(a => a.id === selectedAgendaId) && (
+                          {selectedAgendaId && selectedAgendaId !== 'none' && agendas.find(a => a.id === selectedAgendaId) && (
                             <div
                               className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                               style={{ backgroundColor: agendas.find(a => a.id === selectedAgendaId)!.color }}
@@ -475,7 +549,7 @@ export function AppointmentDialog({
                         </div>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sin agenda</SelectItem>
+                        <SelectItem value="none">Sin agenda</SelectItem>
                         {agendas.map(agenda => (
                           <SelectItem key={agenda.id} value={agenda.id}>
                             <div className="flex items-center gap-2">
@@ -487,7 +561,7 @@ export function AppointmentDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                    {selectedAgendaId && agendas.find(a => a.id === selectedAgendaId) && (
+                    {selectedAgendaId && selectedAgendaId !== 'none' && agendas.find(a => a.id === selectedAgendaId) && (
                       <p className="text-xs text-gray-500">
                         Duración: {agendas.find(a => a.id === selectedAgendaId)!.defaultDuration} min
                         {agendas.find(a => a.id === selectedAgendaId)!.bufferMinutes > 0 &&

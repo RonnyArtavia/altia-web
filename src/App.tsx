@@ -19,6 +19,9 @@ import PatientsPage from '@/features/patients/pages/PatientsPage'
 import PatientEditPage from '@/features/patients/pages/PatientEditPage'
 import AgendaPage from '@/features/schedule/pages/AgendaPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
+import { ProfileEditPage } from '@/features/doctor/pages/ProfileEditPage'
+import { SecretaryManagementPage } from '@/features/doctor/pages/SecretaryManagementPage'
+import { PendingApprovalPage } from '@/features/assistant/pages/PendingApprovalPage'
 import MedicalNotesCopilotPage from '@/features/consultation/pages/MedicalNotesCopilotPage'
 import TodayPatientsPage from '@/features/schedule/pages/TodayPatientsPage'
 import { VerifyDocumentPage } from '@/features/verify/pages/VerifyDocumentPage'
@@ -57,6 +60,12 @@ function App() {
       <Route path="/verify/:orgId/:docId" element={<VerifyDocumentPage />} />
       <Route path="/appointments/action/:token" element={<AppointmentActionPage />} />
 
+      {/* Assistant pending approval - outside protected routes */}
+      <Route
+        path="/assistant/pending-approval"
+        element={<PendingApprovalPage />}
+      />
+
       {/* Copilot — full-screen, outside DashboardLayout */}
       <Route
         path="/doctor/consultation"
@@ -80,6 +89,8 @@ function App() {
                 <Route path="agenda" element={<AgendaPage />} />
                 <Route path="today-patients" element={<TodayPatientsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="profile-edit" element={<ProfileEditPage />} />
+                <Route path="secretary-management" element={<SecretaryManagementPage />} />
                 <Route path="*" element={<Navigate to="/doctor/dashboard" replace />} />
               </Routes>
             </DashboardLayout>

@@ -112,9 +112,11 @@ export async function getAgendasByDoctor(
   doctorId: string
 ): Promise<Agenda[]> {
   const ref = collection(firestore, 'organizations', organizationId, 'agendas')
-  const q = query(ref, where('doctorId', '==', doctorId), orderBy('name'))
+  const q = query(ref, where('doctorId', '==', doctorId))  // Remove orderBy to avoid composite index
   const snap = await getDocs(q)
-  return snap.docs.map(toAgenda).filter((a): a is Agenda => a !== null)
+  const agendas = snap.docs.map(toAgenda).filter((a): a is Agenda => a !== null)
+  // Sort in-memory
+  return agendas.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export async function getAllAgendas(organizationId: string): Promise<Agenda[]> {
@@ -130,13 +132,25 @@ export function subscribeToAgendas(
   callback: (agendas: Agenda[]) => void
 ): () => void {
   const ref = collection(firestore, 'organizations', organizationId, 'agendas')
+
+  // For doctor-specific queries, we'll filter in-memory to avoid index requirements
   const q = doctorId
-    ? query(ref, where('doctorId', '==', doctorId), orderBy('name'))
+    ? query(ref, where('doctorId', '==', doctorId))  // Remove orderBy to avoid composite index
     : query(ref, orderBy('doctorName'), orderBy('name'))
 
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(toAgenda).filter((a): a is Agenda => a !== null))
-  }, () => callback([]))
+    let agendas = snap.docs.map(toAgenda).filter((a): a is Agenda => a !== null)
+
+    // Sort in-memory if filtering by doctor
+    if (doctorId) {
+      agendas = agendas.sort((a, b) => a.name.localeCompare(b.name))
+    }
+
+    callback(agendas)
+  }, (error) => {
+    console.error('Error loading agendas:', error)
+    callback([])
+  })
 }
 
 // ─── Validación anti-traslape ────────────────────────────────

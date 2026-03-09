@@ -14,6 +14,11 @@ export interface UserData {
   createdAt: Date
   updatedAt?: Date
 
+  // Assistant/Secretary authorization fields
+  assistantStatus?: 'pending' | 'approved' | 'suspended' | 'revoked'
+  authorizedBy?: string // doctorId que autorizó
+  authorizedAt?: Date
+
   // Contact information
   phoneNumber?: string
 

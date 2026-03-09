@@ -161,11 +161,22 @@ export default function AgendaPage() {
     enabled: !!organizationId,
   })
 
-  // Visible agendas filtered by selected doctors
+  // Visible agendas filtered by selected doctors and selected agendas
   const visibleAgendas = useMemo(() => {
-    if (!isSecretary || selectedDoctorIds.length === 0) return agendas
-    return agendas.filter(a => selectedDoctorIds.includes(a.doctorId))
-  }, [agendas, isSecretary, selectedDoctorIds])
+    let filtered = agendas
+
+    // Filter by selected doctors (for secretaries)
+    if (isSecretary && selectedDoctorIds.length > 0) {
+      filtered = filtered.filter(a => selectedDoctorIds.includes(a.doctorId))
+    }
+
+    // Filter by selected agendas (for both doctors and secretaries)
+    if (selectedAgendaIds.length > 0) {
+      filtered = filtered.filter(a => selectedAgendaIds.includes(a.id))
+    }
+
+    return filtered
+  }, [agendas, isSecretary, selectedDoctorIds, selectedAgendaIds])
 
   // Doctor toggle handler for left panel
   const handleDoctorToggle = (uid: string) => {
@@ -174,15 +185,14 @@ export default function AgendaPage() {
     )
   }
 
-  // Agenda toggle handler — when "all" state, clicking one excludes it
+  // Agenda toggle handler — simple inclusion/exclusion logic
   const handleAgendaToggle = (id: string) => {
     setSelectedAgendaIds(prev => {
-      if (prev.length === 0) {
-        return visibleAgendas.filter(a => a.id !== id).map(a => a.id)
-      } else if (prev.includes(id)) {
-        const next = prev.filter(aid => aid !== id)
-        return next.length === 0 ? [] : next
+      if (prev.includes(id)) {
+        // Remove the agenda from selection
+        return prev.filter(aid => aid !== id)
       } else {
+        // Add the agenda to selection
         return [...prev, id]
       }
     })
@@ -547,6 +557,7 @@ export default function AgendaPage() {
               blocks={blocks}
               doctorId={selfDoctorId || ''}
               organizationId={organizationId || ''}
+              visibleAgendas={visibleAgendas}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
               onReschedule={handleReschedule}
@@ -560,6 +571,7 @@ export default function AgendaPage() {
               blocks={blocks}
               doctorId={selfDoctorId || ''}
               organizationId={organizationId || ''}
+              visibleAgendas={visibleAgendas}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
               onReschedule={handleReschedule}
@@ -620,7 +632,18 @@ export default function AgendaPage() {
         doctorId={selfDoctorId || ''}
         doctorName={userData?.displayName || userData?.email || ''}
         editAgenda={editingAgenda}
-        onSaved={() => { }}
+        onSaved={(agendaId) => {
+          // After creating/editing an agenda, ensure it will be visible
+          if (isSecretary && selectedDoctorIds.length > 0) {
+            // Clear doctor filters to show all agendas for secretaries
+            setSelectedDoctorIds([])
+          }
+
+          // Clear agenda filters to ensure the new agenda is included in the view
+          if (selectedAgendaIds.length > 0) {
+            setSelectedAgendaIds([])
+          }
+        }}
         isSecretary={isSecretary}
         doctors={isSecretary ? doctors : undefined}
       />
@@ -740,6 +763,7 @@ interface DayViewProps {
   blocks?: ScheduleBlock[]
   doctorId: string
   organizationId: string
+  visibleAgendas: any[]  // Add visibleAgendas parameter
   onSlotClick: (date: Date, time: string) => void
   onAppointmentClick: (appointment: AppointmentData) => void
   onReschedule?: (appointment: AppointmentData, newDate: Date, newTime: string) => void
@@ -753,18 +777,69 @@ function DayView({
   blocks = [],
   doctorId,
   organizationId,
+  visibleAgendas,
   onSlotClick,
   onAppointmentClick,
   onReschedule,
   getAppointmentColor,
   getAgendaCSS
 }: DayViewProps) {
-  // Generate time slots from 8 AM to 6 PM
-  const timeSlots = Array.from({ length: 20 }, (_, i) => {
-    const hour = Math.floor(i / 2) + 8
-    const minutes = (i % 2) * 30
-    return `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
-  })
+  // Generate time slots based on actual agendas instead of hardcoded times
+  const timeSlots = useMemo(() => {
+    console.log('🔧 DayView - Processing agendas:', visibleAgendas)
+
+    if (visibleAgendas.length === 0) {
+      console.log('🔧 DayView - No agendas found')
+      return [] // No time slots if no agendas
+    }
+
+    // Get day name from date
+    const dayOfWeek = date.getDay()
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = dayNames[dayOfWeek]
+
+    console.log(`🔧 DayView - Looking for schedules for ${dayName} (day ${dayOfWeek})`)
+
+    // Find the earliest start time and latest end time from all enabled agendas for this day
+    let earliestStart: string | null = null
+    let latestEnd: string | null = null
+    let hasScheduleForDay = false
+
+    visibleAgendas.forEach(agenda => {
+      if (!agenda.enabled || !agenda.schedule?.[dayName]?.enabled) return
+
+      const daySchedule = agenda.schedule[dayName]
+      hasScheduleForDay = true
+
+      if (!earliestStart || daySchedule.start < earliestStart) {
+        earliestStart = daySchedule.start
+      }
+      if (!latestEnd || daySchedule.end > latestEnd) {
+        latestEnd = daySchedule.end
+      }
+    })
+
+    if (!hasScheduleForDay || !earliestStart || !latestEnd) {
+      return [] // No schedule for this day
+    }
+
+    // Generate time slots every 30 minutes
+    const slots: string[] = []
+    const [startHour, startMinute] = earliestStart.split(':').map(Number)
+    const [endHour, endMinute] = latestEnd.split(':').map(Number)
+
+    const startTimeInMinutes = startHour * 60 + startMinute
+    const endTimeInMinutes = endHour * 60 + endMinute
+
+    for (let time = startTimeInMinutes; time < endTimeInMinutes; time += 30) {
+      const hour = Math.floor(time / 60)
+      const minutes = time % 60
+      const timeString = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+      slots.push(timeString)
+    }
+
+    return slots
+  }, [visibleAgendas, date])
 
   const dayAppointments = appointments.filter(apt => isSameDay(new Date(apt.start), date))
 
@@ -936,6 +1011,7 @@ interface WeekViewProps {
   blocks?: ScheduleBlock[]
   doctorId: string
   organizationId: string
+  visibleAgendas: any[]  // Add visibleAgendas parameter
   onSlotClick: (date: Date, time: string) => void
   onAppointmentClick: (appointment: AppointmentData) => void
   onReschedule?: (appointment: AppointmentData, newDate: Date, newTime: string) => void
@@ -950,6 +1026,7 @@ function WeekView({
   blocks = [],
   doctorId,
   organizationId,
+  visibleAgendas,
   onSlotClick,
   onAppointmentClick,
   onReschedule,
@@ -960,8 +1037,8 @@ function WeekView({
   const weekStart = startOfWeek(date, { weekStartsOn: 1 })
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
-  // Get all time slots for the week using the hook
-  const { timeSlots, daySchedules, loading, error } = useWeekTimeSlots(doctorId, organizationId, weekStart)
+  // Get all time slots for the week using the hook, now using actual agendas
+  const { timeSlots, daySchedules, loading, error } = useWeekTimeSlots(doctorId, organizationId, weekStart, visibleAgendas)
 
   // Helper function to calculate current time position in the schedule
   const getCurrentTimePosition = (timeSlots: string[], slotDuration: number, slotHeight: number): number => {

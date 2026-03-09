@@ -497,6 +497,19 @@ Estructura:
 
 Extrae exámenes de laboratorio solicitados.
 
+⚠️ **VALIDACIONES POR EDAD Y SEXO**:
+
+**Exámenes específicos por sexo:**
+- Beta-hCG (embarazo) en hombres → ALERTA CRÍTICA
+- PSA (próstata) en mujeres → ALERTA CRÍTICA
+- Estradiol/Progesterona sin indicación en hombres → SUGERENCIA
+- Testosterona libre sin indicación en mujeres postmenopáusicas → SUGERENCIA
+
+**Exámenes por edad:**
+- PSA en hombres <40 años sin indicación → SUGERENCIA
+- Colonoscopia en <45 años sin síntomas → SUGERENCIA
+- Perfil tiroideo sin indicación en niños → SUGERENCIA
+
 Estructura:
 \`\`\`json
 {
@@ -516,7 +529,10 @@ Estructura:
     }]
   }],
   "priority": "routine",
-  "note": "En ayunas"
+  "note": "En ayunas",
+  "ageAppropriate": true,
+  "genderAppropriate": true,
+  "validationAlert": ""
 }
 \`\`\`
 
@@ -535,6 +551,22 @@ Estructura:
 ### 5. IMAGING (Solicitudes de Imagenología)
 
 Extrae estudios de imagen solicitados.
+
+⚠️ **VALIDACIONES POR EDAD Y SEXO**:
+
+**Estudios específicos por sexo:**
+- Mamografía en hombres (solo si hay sospecha específica) → SUGERENCIA
+- Ultrasonido obstétrico/ginecológico en hombres → ALERTA CRÍTICA
+- Ultrasonido prostático en mujeres → ALERTA CRÍTICA
+
+**Estudios por edad:**
+- Mamografía de rutina en <40 años → SUGERENCIA (verificar indicación)
+- Colonoscopia virtual en <45 años → SUGERENCIA
+- Densitometría ósea en mujeres premenopáusicas sin factores → SUGERENCIA
+
+**Protección radiológica:**
+- TAC/RX en mujeres embarazadas → ALERTA CRÍTICA (salvo emergencia)
+- Múltiples estudios con radiación en niños → SUGERENCIA (optimizar)
 
 Estructura:
 \`\`\`json
@@ -563,7 +595,11 @@ Estructura:
     }],
     "text": "Tórax"
   },
-  "note": "Evaluar silueta cardíaca"
+  "note": "Evaluar silueta cardíaca",
+  "ageAppropriate": true,
+  "genderAppropriate": true,
+  "radiationSafe": true,
+  "validationAlert": ""
 }
 \`\`\`
 
@@ -627,12 +663,19 @@ Estructura:
 
 Extrae antecedentes familiares mencionados por el doctor.
 
+⚠️ **VALIDACIONES POR EDAD Y SEXO**:
+- Si paciente <18 años y se menciona "historia familiar de hijo/hija" → ALERTA CRÍTICA
+- Si paciente masculino y antecedente "familiar femenino con próstata" → ALERTA CRÍTICA
+- Si antecedente hereditario no concuerda con edad de manifestación típica → SUGERENCIA
+
 Estructura:
 \`\`\`json
 {
   "condition": "Diabetes tipo 2",
   "relationship": "padre",
-  "note": ""
+  "note": "",
+  "ageCompatible": true,
+  "validationAlert": ""
 }
 \`\`\`
 
@@ -642,16 +685,38 @@ Estructura:
 
 Extrae antecedentes personales, quirúrgicos y sociales mencionados.
 
+⚠️ **VALIDACIONES CRÍTICAS POR EDAD Y SEXO**:
+
+**Antecedentes Quirúrgicos:**
+- Histerectomía en paciente masculino → ALERTA CRÍTICA
+- Prostatectomía en paciente femenino → ALERTA CRÍTICA
+- Cesárea en paciente masculino → ALERTA CRÍTICA
+- Cirugías ginecológicas en hombres → ALERTA CRÍTICA
+- Vasectomía en mujeres → ALERTA CRÍTICA
+
+**Antecedentes Médicos:**
+- Embarazos previos en pacientes masculinos → ALERTA CRÍTICA
+- Menopausia en pacientes <35 años → SUGERENCIA (menopausia precoz)
+- Infarto en pacientes <30 años → SUGERENCIA (verificar factores)
+
+**Antecedentes Gineco-Obstétricos (solo mujeres):**
+- G (gestas), P (partos), A (abortos), C (cesáreas) en hombres → ALERTA CRÍTICA
+- Menarquia >16 años o <9 años → SUGERENCIA (verificar)
+- FUR (fecha última regla) en postmenopáusicas >55 años → SUGERENCIA
+
 Estructura:
 \`\`\`json
 {
   "condition": "Apendicectomía 2015",
   "type": "surgical",
-  "note": ""
+  "note": "",
+  "ageCompatible": true,
+  "genderCompatible": true,
+  "validationAlert": ""
 }
 \`\`\`
 
-**type**: surgical (quirúrgico), medical (médico), social (social/hábitos)
+**type**: surgical (quirúrgico), medical (médico), social (social/hábitos), gynecological (ginecológico), obstetric (obstétrico)
 
 ## REGLAS DE EXTRACCIÓN CRÍTICAS
 
@@ -1177,8 +1242,91 @@ NUEVA PRIORIDAD: SIEMPRE generar la nota con los datos disponibles. Las sugerenc
 Recuerda: Tu función es DOCUMENTAR fielmente lo que el doctor dicta, NO interpretar, NO completar, NO inventar.
 Si algo falta, incluye sugerencias en el campo "suggestions", pero SIEMPRE genera la nota con lo disponible.`;
 
+function generateValidationRules(age: number, gender: string): string {
+  const rules = [];
+
+  rules.push(`\n## 🚨 VALIDACIONES CRÍTICAS POR EDAD Y SEXO\n`);
+  rules.push(`⚠️ PACIENTE: ${gender === 'male' ? 'MASCULINO' : gender === 'female' ? 'FEMENINO' : 'OTRO'}, ${age} AÑOS\n`);
+
+  // Validaciones específicas por sexo
+  if (gender === 'male') {
+    rules.push(`### 🚫 INCOMPATIBILIDADES - PACIENTE MASCULINO:`);
+    rules.push(`- ❌ EMBARAZO: Si se menciona embarazo, gestación, gravindex, beta-hCG positiva → ALERTA CRÍTICA`);
+    rules.push(`- ❌ MENSTRUACIÓN: Si se menciona regla, menarquia, amenorrea, dismenorrea → ALERTA CRÍTICA`);
+    rules.push(`- ❌ GINECOLOGÍA: Papanicolau, colposcopia, mamografía rutinaria → ALERTA CRÍTICA`);
+    rules.push(`- ❌ OBSTÉTRICO: Parto, cesárea, aborto, FUR (fecha última regla) → ALERTA CRÍTICA`);
+    rules.push(`- ❌ ANTICONCEPTIVOS: Píldoras anticonceptivas, DIU, implantes → SUGERENCIA DE REVISIÓN\n`);
+  } else if (gender === 'female') {
+    rules.push(`### ⚠️ VALIDACIONES ESPECÍFICAS - PACIENTE FEMENINA:`);
+
+    if (age < 10) {
+      rules.push(`- 🔍 EDAD PRE-PÚBER (${age} años): Menstruación o embarazo → ALERTA CRÍTICA`);
+      rules.push(`- 🔍 MEDICAMENTOS: Anticonceptivos hormonales → SUGERENCIA DE REVISIÓN`);
+    } else if (age >= 10 && age < 15) {
+      rules.push(`- 🔍 ADOLESCENTE TEMPRANA (${age} años): Embarazo → SITUACIÓN DELICADA, DOCUMENTAR CUIDADOSAMENTE`);
+      rules.push(`- 🔍 MENSTRUACIÓN: Si no ha menstruado → Normal para la edad`);
+    } else if (age >= 15 && age < 50) {
+      rules.push(`- 🔍 EDAD REPRODUCTIVA (${age} años): Siempre considerar posibilidad de embarazo`);
+      rules.push(`- 🔍 FUR: Si se menciona relaciones sexuales, validar fecha de última regla`);
+      rules.push(`- 🔍 MEDICAMENTOS: Verificar categoría de embarazo si hay posibilidad`);
+    } else if (age >= 50) {
+      rules.push(`- 🔍 PERIMENOPAUSIA/MENOPAUSIA (${age} años): Menstruación irregular es normal`);
+      rules.push(`- 🔍 EMBARAZO: Poco probable pero posible hasta los 55 años aproximadamente`);
+      rules.push(`- 🔍 SCREENING: Mamografía y Papanicolau según guías`);
+    }
+  }
+
+  // Validaciones por edad (ambos sexos)
+  if (age < 2) {
+    rules.push(`### 👶 VALIDACIONES PEDIÁTRICAS - LACTANTE (${age} ${age === 1 ? 'año' : 'años'}):`);
+    rules.push(`- ❌ MEDICAMENTOS ADULTOS: Aspirina, ibuprofeno, muchos antibióticos → ALERTA CRÍTICA`);
+    rules.push(`- ❌ DOSIS ADULTAS: Cualquier medicamento con dosis de adulto → ALERTA CRÍTICA`);
+    rules.push(`- 🔍 VACUNACIÓN: Verificar esquema según edad`);
+  } else if (age >= 2 && age < 12) {
+    rules.push(`### 🧒 VALIDACIONES PEDIÁTRICAS - NIÑO/A (${age} años):`);
+    rules.push(`- ❌ MEDICAMENTOS RESTRINGIDOS: Aspirina <16 años (Síndrome de Reye) → ALERTA CRÍTICA`);
+    rules.push(`- ⚠️ DOSIS: Validar peso/superficie corporal para dosificación`);
+    rules.push(`- 🔍 DESARROLLO: Problemas típicos de la edad vs patológicos`);
+  } else if (age >= 12 && age < 18) {
+    rules.push(`### 👦👧 VALIDACIONES ADOLESCENTE (${age} años):`);
+    rules.push(`- 🔍 CONFIDENCIALIDAD: Temas sensibles (sexualidad, drogas, salud mental)`);
+    rules.push(`- ⚠️ MEDICAMENTOS: Algunos requieren autorización parental`);
+    rules.push(`- 🔍 SCREENING: Salud mental, riesgos conductuales`);
+  } else if (age >= 65) {
+    rules.push(`### 👴👵 VALIDACIONES GERIÁTRICAS (${age} años):`);
+    rules.push(`- ⚠️ POLIFARMACIA: >5 medicamentos aumenta riesgo interacciones`);
+    rules.push(`- 🔍 MEDICAMENTOS INAPROPIADOS: Criterios de Beers/STOPP-START`);
+    rules.push(`- ⚠️ FUNCIÓN RENAL: Ajustar dosis según filtrado glomerular`);
+    rules.push(`- 🔍 RIESGO CAÍDAS: Sedantes, antihipertensivos, etc.`);
+  }
+
+  // Validaciones generales importantes
+  rules.push(`\n### 🔍 REGLAS DE VALIDACIÓN AUTOMÁTICA:`);
+  rules.push(`**CUANDO DETECTES INCOMPATIBILIDADES:**`);
+  rules.push(`1. 🚨 ALERTA CRÍTICA → Incluir en "suggestions": "ATENCIÓN: [Descripción del conflicto] - Verificar información con el doctor"`);
+  rules.push(`2. ⚠️ SUGERENCIA DE REVISIÓN → Incluir en "suggestions": "Revisar: [Aspecto a verificar] considerando edad y sexo del paciente"`);
+  rules.push(`3. 🔍 VALIDACIÓN NECESARIA → Incluir en "suggestions": "Confirmar: [Información a validar] es apropiada para paciente de ${age} años, sexo ${gender === 'male' ? 'masculino' : 'femenino'}"`);
+
+  rules.push(`\n**EJEMPLOS DE ALERTAS:**`);
+  if (gender === 'male') {
+    rules.push(`- "ATENCIÓN: Se menciona embarazo en paciente masculino - Verificar información con el doctor"`);
+    rules.push(`- "ATENCIÓN: Se registra menstruación en paciente masculino - Revisar datos del paciente"`);
+  }
+  if (age < 12) {
+    rules.push(`- "ATENCIÓN: Dosis de medicamento parece ser de adulto para niño de ${age} años - Verificar dosificación"`);
+  }
+  if (age >= 65) {
+    rules.push(`- "Revisar: Interacciones medicamentosas en paciente geriátrico con múltiples fármacos"`);
+  }
+
+  rules.push(`\n**IMPORTANTE:** Genera la nota SIEMPRE, las validaciones son para incluir sugerencias de revisión.`);
+
+  return rules.join('\n');
+}
+
 export function buildPromptWithContext(text: string, context?: any): string {
   let contextInfo = '';
+  let validationRules = '';
 
   if (context) {
     if (context.patientName) {
@@ -1198,6 +1346,11 @@ export function buildPromptWithContext(text: string, context?: any): string {
         unknown: 'No especificado'
       };
       contextInfo += `Sexo: ${genderMap[context.patientGender] || context.patientGender}\n`;
+    }
+
+    // Generar reglas de validación específicas según edad y sexo
+    if (context.patientAge && context.patientGender) {
+      validationRules = generateValidationRules(context.patientAge, context.patientGender);
     }
 
     if (context.patientHistory) {
@@ -1221,7 +1374,7 @@ export function buildPromptWithContext(text: string, context?: any): string {
     }
   }
 
-  return `${contextInfo}\n\n## TEXTO A PROCESAR\n\n${text}`;
+  return `${contextInfo}${validationRules}\n\n## TEXTO A PROCESAR\n\n${text}`;
 }
 
 export default {

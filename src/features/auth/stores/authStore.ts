@@ -31,6 +31,9 @@ interface AuthState {
   isDoctor: () => boolean
   isSecretary: () => boolean
   isPatient: () => boolean
+  isAuthorizedSecretary: () => boolean
+  isPendingSecretary: () => boolean
+  canAccessSystemData: () => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -114,6 +117,8 @@ export const useAuthStore = create<AuthState>()(
             gender: userData.gender,
             dateOfBirth: userData.dateOfBirth,
             address: userData.address,
+            // Assistant authorization fields - set as pending if secretary
+            assistantStatus: userData.role === 'secretary' ? 'pending' : undefined,
           }
 
           // Save user data to Firestore
@@ -272,6 +277,25 @@ export const useAuthStore = create<AuthState>()(
       isDoctor: () => get().userData?.role === 'doctor',
       isSecretary: () => get().userData?.role === 'secretary',
       isPatient: () => get().userData?.role === 'patient',
+
+      // New assistant/secretary authorization methods
+      isAuthorizedSecretary: () => {
+        const userData = get().userData
+        return userData?.role === 'secretary' && userData?.assistantStatus === 'approved'
+      },
+
+      isPendingSecretary: () => {
+        const userData = get().userData
+        return userData?.role === 'secretary' && userData?.assistantStatus === 'pending'
+      },
+
+      canAccessSystemData: () => {
+        const userData = get().userData
+        if (!userData) return false
+        if (userData.role === 'doctor') return true
+        if (userData.role === 'secretary') return userData.assistantStatus === 'approved'
+        return false
+      },
     }),
     {
       name: 'auth-storage',
