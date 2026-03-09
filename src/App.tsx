@@ -21,6 +21,8 @@ import AgendaPage from '@/features/schedule/pages/AgendaPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import MedicalNotesCopilotPage from '@/features/consultation/pages/MedicalNotesCopilotPage'
 import TodayPatientsPage from '@/features/schedule/pages/TodayPatientsPage'
+import { VerifyDocumentPage } from '@/features/verify/pages/VerifyDocumentPage'
+import { AppointmentActionPage } from '@/features/appointments/pages/AppointmentActionPage'
 
 function LoadingScreen() {
   return (
@@ -52,6 +54,8 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify/:orgId/:docId" element={<VerifyDocumentPage />} />
+      <Route path="/appointments/action/:token" element={<AppointmentActionPage />} />
 
       {/* Copilot — full-screen, outside DashboardLayout */}
       <Route

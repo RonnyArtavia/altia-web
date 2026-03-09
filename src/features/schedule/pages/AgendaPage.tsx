@@ -443,25 +443,25 @@ export default function AgendaPage() {
   return (
     <div className="h-full flex flex-col">
       {/* ── Top bar ─────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-white flex-shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-clinical-100/60 bg-white/80 backdrop-blur-md flex-shrink-0 shadow-sm relative z-10">
         {/* Left: navigation */}
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={handleToday}>Hoy</Button>
-          <div className="flex items-center gap-0.5">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePreviousPeriod}>
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={handleToday} className="rounded-lg shadow-sm border-clinical-200 hover:bg-primary-50 hover:text-primary-700 hover:border-primary-200 transition-all font-medium">Hoy</Button>
+          <div className="flex items-center gap-1 bg-clinical-50 p-1 rounded-lg border border-clinical-100">
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm text-clinical-500 transition-all" onClick={handlePreviousPeriod}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNextPeriod}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm text-clinical-500 transition-all" onClick={handleNextPeriod}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <h1 className="text-lg font-semibold text-gray-900 capitalize">{getDateTitle()}</h1>
+          <h1 className="text-xl font-bold text-clinical-900 capitalize tracking-tight ml-2">{getDateTitle()}</h1>
         </div>
 
         {/* Right: controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {/* View Mode Selector */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center bg-clinical-50/80 backdrop-blur-sm rounded-xl p-1 shadow-inner border border-clinical-100/50">
             {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
               <Button
                 key={mode}
@@ -469,8 +469,8 @@ export default function AgendaPage() {
                 size="sm"
                 onClick={() => setViewMode(mode)}
                 className={cn(
-                  'text-sm h-7 px-3',
-                  viewMode === mode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
+                  'text-sm h-8 px-4 rounded-lg font-medium transition-all duration-200',
+                  viewMode === mode ? 'bg-white shadow-[0_2px_8px_rgb(0,0,0,0.06)] text-primary-700 border border-clinical-200/60' : 'text-clinical-500 hover:text-clinical-900 hover:bg-white/50'
                 )}
               >
                 {mode === 'day' ? 'Día' : mode === 'week' ? 'Semana' : 'Mes'}
@@ -491,21 +491,21 @@ export default function AgendaPage() {
           </div>
 
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-clinical-400 pointer-events-none transition-colors group-focus-within:text-primary-500" />
             <Input
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Buscar paciente…"
-              className="h-8 pl-8 w-44 text-sm"
+              className="h-10 pl-9 w-56 text-sm rounded-xl bg-clinical-50 border-clinical-200 focus:bg-white focus:ring-primary-400/30 focus:border-primary-400 transition-all shadow-sm"
             />
           </div>
 
           {/* New Appointment Button */}
           <Button
-            size="sm"
+            size="default"
             onClick={() => { setSelectedSlot({ date: new Date(), time: '09:00' }); setShowAppointmentDialog(true) }}
-            className="gap-1.5"
+            className="gap-2 rounded-xl shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-primary-600 to-primary-500 font-semibold"
           >
             <Plus className="h-4 w-4" />
             Nueva Cita
@@ -620,7 +620,7 @@ export default function AgendaPage() {
         doctorId={selfDoctorId || ''}
         doctorName={userData?.displayName || userData?.email || ''}
         editAgenda={editingAgenda}
-        onSaved={() => {}}
+        onSaved={() => { }}
         isSecretary={isSecretary}
         doctors={isSecretary ? doctors : undefined}
       />
@@ -873,25 +873,25 @@ function DayView({
             <div
               key={appointment.id}
               className={cn(
-                "absolute left-2 right-2 rounded p-2 z-10 text-left transition-all duration-200 border-l-4",
+                "absolute left-2 right-2 rounded-xl p-2.5 z-10 text-left transition-all duration-300 border-l-[3px]",
                 // Different styles based on appointment status
                 isInteractive
-                  ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]"
-                  : "cursor-default opacity-70",
+                  ? "cursor-pointer hover:shadow-[0_8px_20px_rgb(0,0,0,0.08)] hover:-translate-y-0.5 hover:scale-[1.01]"
+                  : "cursor-default opacity-75 backdrop-blur-sm",
                 // Color scheme: use agenda color if available, else default by type
                 agendaCSS
-                  ? "text-gray-700"
+                  ? "text-clinical-800 shadow-sm"
                   : appointment.type === 'telemedicine'
                     ? isPastAppointment
-                      ? "bg-green-100 border-green-400 text-green-700"
+                      ? "bg-success-50/80 border-success-300 text-success-800 backdrop-blur-sm"
                       : isCancelled
-                        ? "bg-gray-100 border-gray-400 text-gray-600"
-                        : "bg-green-50 border-green-500 text-green-700"
+                        ? "bg-clinical-50/80 border-clinical-300 text-clinical-500 backdrop-blur-sm"
+                        : "bg-success-50 border-success-500 text-success-800 shadow-sm"
                     : isPastAppointment
-                      ? "bg-blue-100 border-blue-400 text-blue-700"
+                      ? "bg-accent-50/80 border-accent-300 text-accent-800 backdrop-blur-sm"
                       : isCancelled
-                        ? "bg-gray-100 border-gray-400 text-gray-600"
-                        : "bg-blue-50 border-blue-500 text-blue-700"
+                        ? "bg-clinical-50/80 border-clinical-300 text-clinical-500 backdrop-blur-sm"
+                        : "bg-blue-50 border-blue-500 text-blue-800 shadow-sm"
               )}
               style={{
                 top: `${top + 16}px`,
@@ -1389,40 +1389,41 @@ function WeekView({
                               background: agendaCSS
                                 ? agendaCSS.backgroundColor
                                 : isPastAppointment && !isCancelled
-                                  ? '#f8f9fa' // Very light gray for past appointments
+                                  ? '#f1f5f9' // Very light gray for past appointments
                                   : isCancelled
-                                    ? '#f5f5f5' // Light gray background for cancelled
-                                    : '#e8f4fd', // Light blue background like Outlook for active
-                              borderRadius: '4px',
+                                    ? '#f8fafc' // Light gray background for cancelled
+                                    : '#eff6ff', // Light blue background like Outlook for active
+                              borderRadius: '8px',
                               border: isPastAppointment && !isCancelled
-                                ? '1px solid #e9ecef' // Very light border for past
+                                ? '1px solid #e2e8f0' // Very light border for past
                                 : isCancelled
-                                  ? '1px solid #d1d5db' // Light gray border for cancelled
+                                  ? '1px solid #cbd5e1' // Light gray border for cancelled
                                   : agendaCSS
-                                    ? `1px solid ${agendaCSS.borderLeftColor}33`
+                                    ? `1px solid ${agendaCSS.borderLeftColor}40`
                                     : '1px solid #bfdbfe', // Light blue border for active
                               borderLeftWidth: '3px', // Thin accent border
                               borderLeftColor: agendaCSS
                                 ? agendaCSS.borderLeftColor
                                 : isPastAppointment && !isCancelled
-                                  ? '#adb5bd' // Muted gray for past appointments
+                                  ? '#94a3b8' // Muted gray for past appointments
                                   : isCancelled
-                                    ? '#9ca3af' // Gray accent for cancelled
-                                    : '#1d4ed8', // Dark blue accent like Outlook for active
+                                    ? '#cbd5e1' // Gray accent for cancelled
+                                    : '#3b82f6', // Dark blue accent like Outlook for active
                               borderLeftStyle: 'solid',
                               // Shadow and hover effects
                               boxShadow: isPastAppointment
-                                ? '0 1px 2px rgba(0, 0, 0, 0.05)' // Minimal shadow for past appointments
+                                ? '0 1px 2px rgba(0, 0, 0, 0.02)' // Minimal shadow for past appointments
                                 : isCancelled
-                                  ? '0 1px 3px rgba(0, 0, 0, 0.08)'
-                                  : '0 2px 4px rgba(25, 118, 210, 0.08), 0 1px 2px rgba(25, 118, 210, 0.06)',
+                                  ? '0 1px 2px rgba(0, 0, 0, 0.04)'
+                                  : '0 4px 12px rgba(59, 130, 246, 0.08), 0 2px 4px rgba(59, 130, 246, 0.04)',
                               // Typography and spacing - Outlook-style padding
-                              padding: '6px 8px', // Balanced padding for content visibility
+                              padding: '8px 10px', // Balanced padding for content visibility
                               fontSize: '11px', // Optimized for readability in small spaces
-                              fontWeight: '500', // Medium weight for better readability
-                              lineHeight: '1.3', // Compact line height to fit more content
+                              fontWeight: '600', // Medium weight for better readability
+                              lineHeight: '1.4', // Compact line height to fit more content
                               overflow: 'hidden',
-                              opacity: isPastAppointment ? 0.7 : isCancelled ? 0.85 : 1,
+                              backdropFilter: 'blur(8px)',
+                              opacity: isPastAppointment ? 0.75 : isCancelled ? 0.8 : 1,
                             }}
                             onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
                             draggable={isInteractive}

@@ -14,6 +14,10 @@ import {
   ArrowRight,
   Sparkles,
   Database,
+  CheckCircle,
+  PlayCircle,
+  XCircle,
+  ClipboardList,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -51,41 +55,79 @@ export default function DoctorDashboard() {
     )
   }
 
-  const stats = [
+  const isSecretary = userData?.role === 'secretary'
+  const apt = data?.appointments
+
+  const stats = isSecretary ? [
     {
-      title: 'Citas hoy',
-      value: data?.appointments.today ?? 0,
-      subtitle: `${data?.appointments.inPersonToday ?? 0} presencial · ${data?.appointments.videoToday ?? 0} video`,
+      title: 'Programadas',
+      value: apt?.bookedToday ?? 0,
+      subtitle: `De ${apt?.today ?? 0} citas hoy`,
       icon: CalendarDays,
       gradient: 'stat-gradient-primary',
       iconColor: 'text-primary',
       iconBg: 'bg-primary/10',
     },
     {
-      title: 'Citas esta semana',
-      value: data?.appointments.week ?? 0,
-      subtitle: `${data?.appointments.inPersonWeek ?? 0} presencial · ${data?.appointments.videoWeek ?? 0} video`,
-      icon: Stethoscope,
-      gradient: 'stat-gradient-accent',
-      iconColor: 'text-accent',
-      iconBg: 'bg-accent/10',
-    },
-    {
-      title: 'Citas del mes',
-      value: data?.appointments.month ?? 0,
-      subtitle: `${data?.appointments.inPersonMonth ?? 0} presencial · ${data?.appointments.videoMonth ?? 0} video`,
-      icon: TrendingUp,
+      title: 'Confirmadas',
+      value: apt?.confirmedToday ?? 0,
+      subtitle: 'Listas para atencion',
+      icon: CheckCircle,
       gradient: 'stat-gradient-success',
       iconColor: 'text-success',
       iconBg: 'bg-success/10',
     },
     {
-      title: 'Facturación del mes',
-      value: data?.billing.monthAmount
-        ? `₡${data.billing.monthAmount.toLocaleString('es-CR')}`
-        : '₡0',
-      subtitle: `${data?.billing.pendingInvoices ?? 0} facturas pendientes`,
-      icon: DollarSign,
+      title: 'En espera',
+      value: (apt?.bookedToday ?? 0) - (apt?.confirmedToday ?? 0) - (apt?.cancelledToday ?? 0),
+      subtitle: 'Pendientes de confirmar',
+      icon: Clock,
+      gradient: 'stat-gradient-warning',
+      iconColor: 'text-warning',
+      iconBg: 'bg-warning/10',
+    },
+    {
+      title: 'Canceladas',
+      value: apt?.cancelledToday ?? 0,
+      subtitle: 'Canceladas hoy',
+      icon: XCircle,
+      gradient: 'stat-gradient-warning',
+      iconColor: 'text-danger',
+      iconBg: 'bg-danger/10',
+    },
+  ] : [
+    {
+      title: 'Citas hoy',
+      value: apt?.today ?? 0,
+      subtitle: `${apt?.inPersonToday ?? 0} presencial · ${apt?.videoToday ?? 0} video`,
+      icon: CalendarDays,
+      gradient: 'stat-gradient-primary',
+      iconColor: 'text-primary',
+      iconBg: 'bg-primary/10',
+    },
+    {
+      title: 'En curso',
+      value: apt?.inProgressToday ?? 0,
+      subtitle: 'Atendiendo ahora',
+      icon: PlayCircle,
+      gradient: 'stat-gradient-accent',
+      iconColor: 'text-accent',
+      iconBg: 'bg-accent/10',
+    },
+    {
+      title: 'Finalizadas',
+      value: apt?.completedToday ?? 0,
+      subtitle: `De ${apt?.today ?? 0} programadas hoy`,
+      icon: CheckCircle,
+      gradient: 'stat-gradient-success',
+      iconColor: 'text-success',
+      iconBg: 'bg-success/10',
+    },
+    {
+      title: 'Esta semana',
+      value: apt?.week ?? 0,
+      subtitle: `${apt?.inPersonWeek ?? 0} presencial · ${apt?.videoWeek ?? 0} video`,
+      icon: TrendingUp,
       gradient: 'stat-gradient-warning',
       iconColor: 'text-warning',
       iconBg: 'bg-warning/10',
@@ -103,16 +145,18 @@ export default function DoctorDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-600 via-primary-500 to-primary-700 p-6 text-white shadow-lg animate-fade-in">
-        <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/4" />
-        <div className="absolute bottom-0 left-1/2 w-48 h-48 rounded-full bg-white/5 translate-y-1/2" />
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 p-8 text-white shadow-[0_8px_30px_rgb(13,148,136,0.3)] animate-fade-in border border-primary-500/30">
+        <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-white/10 blur-[60px] -translate-y-1/2 translate-x-1/4" />
+        <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full bg-white/10 blur-[50px] translate-y-1/2" />
         <div className="relative z-10">
-          <p className="text-primary-100 text-sm font-medium">{getGreeting()}</p>
-          <h1 className="text-2xl font-bold mt-1">
-            {data?.doctor.name || userData?.name || 'Doctor'}
+          <p className="text-primary-100 text-xs font-bold uppercase tracking-widest mb-3 opacity-90">{getGreeting()}</p>
+          <h1 className="text-4xl font-extrabold mt-1 tracking-tight">
+            Dr. {data?.doctor.name || userData?.name || 'Doctor'}
           </h1>
-          <p className="text-primary-200 text-sm mt-1">
-            {data?.doctor.specialty || 'Medicina General'} · {data?.doctor.organizationName || 'Altia Health'}
+          <p className="text-primary-100 text-base mt-3 flex items-center gap-2 font-medium">
+            <Stethoscope className="w-5 h-5 opacity-80" /> {data?.doctor.specialty || 'Medicina General'}
+            <span className="opacity-40">|</span>
+            {data?.doctor.organizationName || 'Altia Health'}
           </p>
         </div>
       </div>
@@ -124,16 +168,18 @@ export default function DoctorDashboard() {
           : stats.map((stat, i) => (
             <Card
               key={stat.title}
-              className={`${stat.gradient} border-0 ${staggerClasses[i] || ''}`}
+              className={`relative overflow-hidden border border-white/40 rounded-3xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all bg-white backdrop-blur-xl ${staggerClasses[i] || ''}`}
             >
-              <CardContent className="flex items-center gap-4 p-5">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${stat.iconBg} transition-transform group-hover:scale-110`}>
-                  <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
+              <div className={`absolute inset-0 opacity-20 ${stat.gradient}`} />
+              <div className="absolute -right-6 -top-6 w-32 h-32 bg-gradient-to-br from-white to-transparent blur-2xl rounded-full pointer-events-none" />
+              <CardContent className="flex items-center gap-5 p-6 relative z-10">
+                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${stat.iconBg} transition-transform group-hover:scale-110 shadow-sm border border-white/60`}>
+                  <stat.icon className={`h-7 w-7 ${stat.iconColor}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm text-clinical-500 truncate">{stat.title}</p>
-                  <p className="text-2xl font-bold text-clinical-900">{stat.value}</p>
-                  <p className="text-xs text-clinical-400 truncate">{stat.subtitle}</p>
+                  <p className="text-sm font-semibold text-clinical-500 truncate mb-1 uppercase tracking-wider text-[11px]">{stat.title}</p>
+                  <p className="text-3xl font-extrabold text-clinical-900 tracking-tight">{stat.value}</p>
+                  <div className="mt-2 text-xs font-semibold text-clinical-600 truncate bg-clinical-50/80 border border-clinical-100 px-2.5 py-1 rounded-lg inline-flex shadow-sm">{stat.subtitle}</div>
                 </div>
               </CardContent>
             </Card>
@@ -194,12 +240,23 @@ export default function DoctorDashboard() {
                       )}
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${apt.status === 'confirmed'
-                            ? 'bg-success-50 text-success-700 ring-1 ring-success-200'
-                            : 'bg-warning-50 text-warning-700 ring-1 ring-warning-200'
+                          ? 'bg-success-50 text-success-700 ring-1 ring-success-200'
+                          : 'bg-warning-50 text-warning-700 ring-1 ring-warning-200'
                           }`}
                       >
                         {apt.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
                       </span>
+                      {!isSecretary && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs text-primary hover:bg-primary-50 gap-1"
+                          onClick={() => navigate(`/doctor/consultation?appointmentId=${apt.id}`)}
+                        >
+                          <Stethoscope className="h-3 w-3" />
+                          Atender
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -217,33 +274,33 @@ export default function DoctorDashboard() {
         </Card>
 
         {/* Quick Actions */}
-        <Card className="animate-slide-up delay-100">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10">
-                <Sparkles className="h-4 w-4 text-accent" />
+        <Card className="animate-slide-up delay-100 rounded-[2rem] border-white/50 bg-white/90 backdrop-blur-md shadow-[0_4px_20px_rgb(0,0,0,0.03)]">
+          <CardHeader className="pb-3 border-b border-clinical-100/50 mb-3 px-6">
+            <CardTitle className="flex items-center gap-3 text-lg font-bold">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-50 border border-accent-100/50 shadow-sm">
+                <Sparkles className="h-5 w-5 text-accent-600" />
               </div>
-              Acciones rápidas
+              Accesos Rápidos
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3 px-6">
             {quickActions.map((action) => (
               <Button
                 key={action.label}
                 variant="outline"
-                className="w-full justify-start gap-3 h-12 rounded-xl hover:border-primary-200 hover:bg-primary-50/50 transition-all group"
+                className="w-full justify-start gap-4 h-14 rounded-2xl hover:border-primary-200 hover:bg-primary-50/50 transition-all group shadow-sm bg-white"
                 onClick={action.onClick}
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-clinical-100 group-hover:bg-primary/10 transition-colors">
-                  <action.icon className="h-4 w-4 text-clinical-500 group-hover:text-primary transition-colors" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-clinical-50 group-hover:bg-primary-100/50 transition-colors shadow-sm border border-clinical-100/50">
+                  <action.icon className="h-5 w-5 text-clinical-500 group-hover:text-primary-600 transition-colors" />
                 </div>
-                <span className="font-medium">{action.label}</span>
-                {action.badge ? (
-                  <span className="ml-auto rounded-full bg-danger px-2 py-0.5 text-xs text-white font-medium animate-pulse-soft">
+                <span className="font-semibold text-clinical-700 group-hover:text-primary-900 transition-colors text-base">{action.label}</span>
+                {action.badge && action.badge > 0 ? (
+                  <span className="ml-auto rounded-full bg-danger-500 px-2.5 py-0.5 text-[11px] text-white font-bold animate-pulse shadow-sm">
                     {action.badge}
                   </span>
                 ) : (
-                  <ArrowRight className="ml-auto h-4 w-4 text-clinical-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ArrowRight className="ml-auto h-5 w-5 text-clinical-300 opacity-0 group-hover:opacity-100 group-hover:-translate-x-1 transition-all duration-300" />
                 )}
               </Button>
             ))}

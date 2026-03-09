@@ -48,6 +48,7 @@ interface MainContentPanelProps {
   onUpdateFHIR?: (id: string, updates: Partial<FHIRPlanItem>) => void;
   onRemoveFHIR?: (id: string) => void;
   onUpdateEducation?: (text: string) => void;
+  onGeneratePDF?: (type: 'prescription' | 'labOrder' | 'referral') => void;
   elapsedTime?: number;
   onAnalyzeRisks?: () => void;
   isAnalyzingRisks?: boolean;
@@ -311,6 +312,7 @@ export function MainContentPanel({
   onUpdateFHIR,
   onRemoveFHIR,
   onUpdateEducation,
+  onGeneratePDF,
   elapsedTime = 0,
   onEncounterClick,
   onBack,
@@ -411,6 +413,7 @@ export function MainContentPanel({
               onUpdateFHIR={onUpdateFHIR}
               onRemoveFHIR={onRemoveFHIR}
               onUpdateEducation={onUpdateEducation}
+              onGeneratePDF={onGeneratePDF}
             />
           )}
 

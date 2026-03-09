@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonCard } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -174,7 +175,7 @@ export default function PatientsPage() {
             placeholder="Buscar por nombre, cédula, teléfono o email…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-white/80 backdrop-blur-sm border-clinical-200/60 focus:border-primary-300 focus:ring-primary-200/50"
+            className="pl-10 h-10 w-full sm:w-80 text-sm rounded-xl bg-clinical-50/80 backdrop-blur-sm border-clinical-200/60 focus:bg-white focus:border-primary-400 focus:ring-primary-400/30 transition-all shadow-sm"
           />
         </div>
         <div className="flex gap-2">
@@ -184,6 +185,10 @@ export default function PatientsPage() {
               variant={activeFilter === filter ? 'default' : 'outline'}
               size="sm"
               onClick={() => setActiveFilter(filter)}
+              className={cn(
+                "rounded-lg transition-all h-9 font-medium",
+                activeFilter === filter ? "bg-primary-600 text-white shadow-md border-primary-600" : "bg-white text-clinical-600 border-clinical-200 hover:bg-clinical-50 hover:text-clinical-900"
+              )}
             >
               {filter === 'all' ? 'Todos' : filter === 'recent' ? 'Recientes' : 'Con cita'}
             </Button>
@@ -233,9 +238,9 @@ export default function PatientsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="border rounded-lg overflow-hidden bg-white">
+        <div className="border border-clinical-100 rounded-xl shadow-sm bg-white overflow-hidden">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-clinical-50/50">
               <TableRow>
                 <TableHead>Nombre Completo</TableHead>
                 <TableHead>Identificación</TableHead>
@@ -250,7 +255,7 @@ export default function PatientsPage() {
               {filteredPatients.map((patient) => (
                 <TableRow
                   key={patient.id}
-                  className="cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="cursor-pointer hover:bg-primary-50/40 transition-colors border-b border-clinical-100/60 last:border-0"
                   onClick={() => handleViewPatient(patient)}
                 >
                   <TableCell>
@@ -272,11 +277,11 @@ export default function PatientsPage() {
                         )}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">
+                        <div className="font-semibold text-clinical-900">
                           {patient.name}
                         </div>
                         {patient.address && (
-                          <div className="text-sm text-gray-500 truncate max-w-xs">
+                          <div className="text-sm text-clinical-500 truncate max-w-[200px]">
                             {patient.address}
                           </div>
                         )}
@@ -293,14 +298,14 @@ export default function PatientsPage() {
                   <TableCell>
                     <div className="space-y-1">
                       {patient.email && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3 text-gray-400" />
-                          <span className="truncate max-w-[120px]">{patient.email}</span>
+                        <div className="flex items-center gap-1.5 text-sm text-clinical-600">
+                          <Mail className="h-3.5 w-3.5 text-clinical-400" />
+                          <span className="truncate max-w-[150px]">{patient.email}</span>
                         </div>
                       )}
                       {patient.phone && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3 text-gray-400" />
+                        <div className="flex items-center gap-1.5 text-sm text-clinical-600">
+                          <Phone className="h-3.5 w-3.5 text-clinical-400" />
                           <span>{patient.phone}</span>
                         </div>
                       )}
@@ -317,13 +322,13 @@ export default function PatientsPage() {
                   </TableCell>
 
                   <TableCell>
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-[10px] font-medium bg-success-50 text-success-700 border border-success-200">
                       Activo
                     </Badge>
                   </TableCell>
 
                   <TableCell>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-clinical-500">
                       {formatDate(patient.createdAt)}
                     </div>
                   </TableCell>

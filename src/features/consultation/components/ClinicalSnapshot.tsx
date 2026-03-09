@@ -28,6 +28,9 @@ import {
   ClipboardList,
   Tag,
   Users,
+  FileDown,
+  TestTube,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -291,17 +294,33 @@ function IPSItemRow({
   }
 
   const isPresumptive = item.type === 'condition' && item.verificationStatus === 'presumptive';
+  const isApproved = item.approved !== false;
+  const isApprovable = ['medication', 'labOrder', 'imagingOrder', 'order', 'referral', 'procedure'].includes(item.type);
 
   return (
     <div
       className={`p-3 rounded-lg ${colors.bg} border ${colors.border} text-left hover:shadow-sm transition-all group relative pr-8 ${isSelectionMode ? 'cursor-pointer hover:bg-opacity-80' : ''
-        }`}
+        } ${!isApproved && isApprovable ? 'opacity-50' : ''}`}
       onClick={isSelectionMode ? onToggleSelection : undefined}
     >
       <div className="flex items-start gap-3">
+        {/* Approval toggle for actionable items */}
+        {isApprovable && !readOnly && !isSelectionMode && onUpdate && (
+          <button
+            onClick={() => item.id && onUpdate(item.id, { approved: !isApproved })}
+            className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+              isApproved
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'bg-white border-slate-300 hover:border-slate-400'
+            }`}
+            title={isApproved ? 'Desaprobar — no se incluirá en documentos' : 'Aprobar — se incluirá en documentos'}
+          >
+            {isApproved && <Check size={10} />}
+          </button>
+        )}
         <div className="text-left flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className={`font-semibold text-sm ${colors.text}`}>
+            <p className={`font-semibold text-sm ${colors.text} ${!isApproved && isApprovable ? 'line-through' : ''}`}>
               {item.display || item.text}
             </p>
             {/* Presumptive Badge */}
@@ -374,6 +393,7 @@ interface ClinicalSnapshotProps {
   onRemoveFHIR?: (id: string) => void;
   onUpdateEducation?: (text: string) => void;
   onApproveSuggestion?: (suggestion: CopilotSuggestion) => void;
+  onGeneratePDF?: (type: 'prescription' | 'labOrder' | 'referral') => void;
 }
 
 export function ClinicalSnapshot({
@@ -384,7 +404,8 @@ export function ClinicalSnapshot({
   onUpdateFHIR,
   onRemoveFHIR,
   onUpdateEducation,
-  onApproveSuggestion
+  onApproveSuggestion,
+  onGeneratePDF
 }: ClinicalSnapshotProps) {
   if (!data) return null;
 
@@ -1506,6 +1527,54 @@ export function ClinicalSnapshot({
             />
           </div>
         </div>
+
+        {/* Generate PDF Buttons */}
+        {onGeneratePDF && !isHistoryView && data.fhir.length > 0 && (() => {
+          const approvedMeds = data.fhir.filter(i => i.type === 'medication' && i.approved !== false)
+          const approvedLabs = data.fhir.filter(i => (i.type === 'labOrder' || i.type === 'order') && i.approved !== false)
+          const approvedRefs = data.fhir.filter(i => i.type === 'referral' && i.approved !== false)
+          if (approvedMeds.length === 0 && approvedLabs.length === 0 && approvedRefs.length === 0) return null
+          return (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <FileDown size={14} className="text-clinical-500" />
+                <span className="text-xs font-bold text-clinical-600 uppercase tracking-wider">Generar Documentos</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {approvedMeds.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                    onClick={() => onGeneratePDF('prescription')}
+                  >
+                    <Pill size={14} /> Receta ({approvedMeds.length} items)
+                  </Button>
+                )}
+                {approvedLabs.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2 text-purple-700 border-purple-200 hover:bg-purple-50"
+                    onClick={() => onGeneratePDF('labOrder')}
+                  >
+                    <TestTube size={14} /> Orden Lab ({approvedLabs.length} items)
+                  </Button>
+                )}
+                {approvedRefs.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                    onClick={() => onGeneratePDF('referral')}
+                  >
+                    <FileText size={14} /> Referencia ({approvedRefs.length})
+                  </Button>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Finalize Button */}
         {onFinalize && !isHistoryView && (

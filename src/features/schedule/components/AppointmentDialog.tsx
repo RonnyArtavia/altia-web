@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -293,7 +293,8 @@ export function AppointmentDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-5xl h-[80vh] p-0 bg-white flex flex-col">
+        <DialogContent className="max-w-5xl h-[80vh] p-0 bg-white flex flex-col" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{appointment ? 'Editar Cita' : 'Nueva Cita'}</DialogTitle>
           {/* Header */}
           <div className="flex items-center p-4 border-b bg-gray-50">
             <div className="flex items-center space-x-3">

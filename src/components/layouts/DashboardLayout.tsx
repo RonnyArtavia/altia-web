@@ -49,20 +49,29 @@ function getNavigationItems(userRole: 'doctor' | 'secretary' = 'doctor'): NavIte
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const { userData, signOut } = useAuthStore()
   const mainRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
 
   const userRole = (userData?.role as 'doctor' | 'secretary') || 'doctor'
   const navigationItems = getNavigationItems(userRole)
 
-  // Detect scroll for sticky header shadow
+  // Detect scroll for sticky header shadow (rerender-move-effect-to-event Vercel Best Practice)
   useEffect(() => {
     const el = mainRef.current
-    if (!el) return
-    const onScroll = () => setScrolled(el.scrollTop > 8)
+    const headerEl = headerRef.current
+    if (!el || !headerEl) return
+    const onScroll = () => {
+      if (el.scrollTop > 8) {
+        headerEl.classList.add('shadow-soft', 'border-clinical-200/40')
+        headerEl.classList.remove('border-clinical-100/60')
+      } else {
+        headerEl.classList.remove('shadow-soft', 'border-clinical-200/40')
+        headerEl.classList.add('border-clinical-100/60')
+      }
+    }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
@@ -105,8 +114,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             transition-all duration-300 ease-in-out
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             lg:translate-x-0 lg:static
-            ${sidebarCollapsed ? 'lg:w-[72px]' : 'lg:w-64'}
-            w-64
+            ${sidebarCollapsed ? 'lg:w-[88px]' : 'lg:w-72'}
+            w-72
           `}
         >
           {/* Logo */}
@@ -135,13 +144,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     setSidebarOpen(false)
                   }}
                   className={`
-                    group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
+                    group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium
                     transition-all duration-200
                     ${active
                       ? 'bg-gradient-to-r from-primary-50 to-primary-100/50 text-primary-700 shadow-sm'
                       : 'text-clinical-600 hover:bg-clinical-50 hover:text-clinical-900'
                     }
-                    ${sidebarCollapsed ? 'justify-center lg:px-0' : ''}
+                    ${sidebarCollapsed ? 'justify-center lg:px-0 mx-2 w-[calc(100%-16px)]' : 'mx-2 w-[calc(100%-16px)]'}
                   `}
                 >
                   {/* Active indicator bar */}
@@ -219,10 +228,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Top bar */}
           <header
+            ref={headerRef}
             className={`
               flex h-16 items-center justify-between px-4 lg:px-6 bg-white/80 backdrop-blur-md
-              transition-all duration-300 sticky top-0 z-10
-              ${scrolled ? 'shadow-soft border-b border-clinical-200/40' : 'border-b border-clinical-100/60'}
+              transition-all duration-300 sticky top-0 z-10 border-b border-clinical-100/60
             `}
           >
             <div className="flex items-center gap-3">

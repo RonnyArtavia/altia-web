@@ -12,7 +12,7 @@ import {
   ArrowRight, Loader2, FileText, AlertTriangle,
 } from 'lucide-react'
 
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
@@ -132,7 +132,8 @@ export function AppointmentOptionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden rounded-2xl">
+      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden rounded-2xl" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">{appointment.patientName}</DialogTitle>
 
         {/* ── Header: paciente + estado ── */}
         <div className="px-5 pt-5 pb-4">

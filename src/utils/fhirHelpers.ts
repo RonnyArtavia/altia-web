@@ -100,7 +100,8 @@ export const normalizeFHIR = (items: unknown[]): FHIRPlanItem[] => {
         : undefined,
     // Preserve any other fields
     ...item,
-    id: item.id || generateId()
+    id: item.id || generateId(),
+    approved: item.approved !== undefined ? item.approved : true
   } as FHIRPlanItem));
 };
 

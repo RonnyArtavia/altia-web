@@ -11,6 +11,7 @@ import {
   Syringe,
   Calendar,
   User,
+  Users,
   FileHeart,
   AlertTriangle,
   X,
@@ -49,11 +50,15 @@ interface IPSItem {
   frequency?: string;  // Medication frequency
   duration?: string;   // Treatment duration
   route?: string;      // Administration route
+  relationship?: string; // Family history relationship
+  category?: string;     // Personal history category
 }
+
+type DetailPanelType = 'allergies' | 'medications' | 'conditions' | 'vaccines' | 'orders' | 'labResults' | 'clinicalEvolution' | 'familyHistory' | 'personalHistory';
 
 interface DetailPanelProps {
   item: IPSItem | null;
-  type: 'allergies' | 'medications' | 'conditions' | 'vaccines' | 'orders' | 'labResults' | 'clinicalEvolution' | null;
+  type: DetailPanelType | null;
   onClose: () => void;
 }
 
@@ -102,6 +107,18 @@ function DetailPanel({ item, type, onClose }: DetailPanelProps) {
       headerBg: 'bg-orange-50',
       titleColor: 'text-orange-600',
       icon: <FileText size={18} className="text-orange-500" />
+    },
+    familyHistory: {
+      title: 'Antecedente Familiar',
+      headerBg: 'bg-violet-50',
+      titleColor: 'text-violet-600',
+      icon: <Users size={18} className="text-violet-500" />
+    },
+    personalHistory: {
+      title: 'Antecedente Personal',
+      headerBg: 'bg-fuchsia-50',
+      titleColor: 'text-fuchsia-600',
+      icon: <User size={18} className="text-fuchsia-500" />
     },
   };
 
@@ -260,6 +277,26 @@ function DetailPanel({ item, type, onClose }: DetailPanelProps) {
               <div className="p-3 bg-orange-50 rounded-lg border border-orange-100">
                 <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wide block mb-2">Resumen</span>
                 <p className="text-orange-700 text-sm">{item.summary}</p>
+              </div>
+            )}
+
+            {type === 'familyHistory' && item.relationship && (
+              <div className="flex items-center gap-3 p-3 bg-violet-50 rounded-lg border border-violet-100">
+                <Users size={16} className="text-violet-500 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wide block">Parentesco</span>
+                  <span className="text-violet-700 font-medium">{item.relationship}</span>
+                </div>
+              </div>
+            )}
+
+            {type === 'personalHistory' && item.category && (
+              <div className="flex items-center gap-3 p-3 bg-fuchsia-50 rounded-lg border border-fuchsia-100">
+                <User size={16} className="text-fuchsia-500 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-wide block">Categoría</span>
+                  <span className="text-fuchsia-700 font-medium">{item.category}</span>
+                </div>
               </div>
             )}
 
@@ -423,6 +460,20 @@ function IPSCard({ title, icon, items, colorScheme, onItemClick }: IPSCardProps)
 
                   {/* Contextual information with responsive styling */}
                   <div className="space-y-2">
+                    {(title === 'Antecedentes Familiares' && item.relationship) && (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-violet-50 text-violet-700 text-xs font-medium rounded-lg border border-violet-100 w-fit">
+                        <Users size={11} className="text-violet-500 flex-shrink-0" />
+                        <span className="truncate">{item.relationship}</span>
+                      </div>
+                    )}
+
+                    {(title === 'Antecedentes Personales' && item.category) && (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-fuchsia-50 text-fuchsia-700 text-xs font-medium rounded-lg border border-fuchsia-100 w-fit">
+                        <div className="w-1.5 h-1.5 bg-fuchsia-500 rounded-full flex-shrink-0"></div>
+                        <span className="truncate">{item.category}</span>
+                      </div>
+                    )}
+
                     {(title === 'Diagnósticos' && item.status) && (
                       <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-100 w-fit">
                         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0"></div>
@@ -511,9 +562,9 @@ interface IPSDashboardCompactProps {
 
 export function IPSDashboardCompact({ ipsData, vitalSigns }: IPSDashboardCompactProps) {
   const [selectedItem, setSelectedItem] = useState<IPSItem | null>(null);
-  const [selectedType, setSelectedType] = useState<'allergies' | 'medications' | 'conditions' | 'vaccines' | 'orders' | 'labResults' | 'clinicalEvolution' | null>(null);
+  const [selectedType, setSelectedType] = useState<DetailPanelType | null>(null);
 
-  const handleItemClick = (item: IPSItem, type: 'allergies' | 'medications' | 'conditions' | 'vaccines' | 'orders' | 'labResults' | 'clinicalEvolution') => {
+  const handleItemClick = (item: IPSItem, type: DetailPanelType) => {
     setSelectedItem(item);
     setSelectedType(type);
   };
@@ -605,6 +656,28 @@ export function IPSDashboardCompact({ ipsData, vitalSigns }: IPSDashboardCompact
           colorScheme="from-success-50/90 via-green-50/80 to-teal-50/70"
           onItemClick={(item) => handleItemClick(item, 'vaccines')}
         />
+
+        {/* Family History */}
+        {ipsData.familyHistory && ipsData.familyHistory.length > 0 && (
+          <IPSCard
+            title="Antecedentes Familiares"
+            icon={<Users size={16} className="text-violet-600" />}
+            items={ipsData.familyHistory}
+            colorScheme="from-violet-50/90 via-purple-50/80 to-fuchsia-50/70"
+            onItemClick={(item) => handleItemClick(item, 'familyHistory')}
+          />
+        )}
+
+        {/* Personal History */}
+        {ipsData.personalHistory && ipsData.personalHistory.length > 0 && (
+          <IPSCard
+            title="Antecedentes Personales"
+            icon={<User size={16} className="text-fuchsia-600" />}
+            items={ipsData.personalHistory}
+            colorScheme="from-fuchsia-50/90 via-pink-50/80 to-rose-50/70"
+            onItemClick={(item) => handleItemClick(item, 'personalHistory')}
+          />
+        )}
 
         {/* Clinical Evolution */}
         {ipsData.clinicalEvolution && ipsData.clinicalEvolution.length > 0 && (

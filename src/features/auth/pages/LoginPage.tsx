@@ -117,26 +117,35 @@ export function LoginPage() {
       <div className="lg:hidden absolute inset-0 bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 opacity-10" />
 
       {/* Right panel - Premium Login Form */}
-      <div className="flex w-full flex-col items-center justify-center px-6 lg:w-2/5 bg-clinical-25 relative">
+      <div className="flex w-full flex-col items-center justify-center px-6 lg:w-2/5 bg-gradient-to-br from-clinical-50 to-white relative overflow-hidden">
+        {/* Soft floating gradient orbs */}
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary-200/40 rounded-full blur-[100px] opacity-60 pointer-events-none animate-pulse-soft" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-accent-200/40 rounded-full blur-[100px] opacity-60 pointer-events-none animate-pulse-soft" style={{ animationDelay: '1.5s' }} />
+
         <div className="w-full max-w-md relative z-10">
           {/* Mobile logo */}
           <div className="lg:hidden mb-12 flex justify-center animate-fade-in">
-            <AltiaLogo />
+            <AltiaLogo size="large" />
           </div>
 
           {/* Premium form card */}
-          <div className="bg-white rounded-2xl shadow-card-hover border border-clinical-100/50 p-8 animate-scale-in backdrop-blur-sm">
+          <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white p-8 sm:p-10 animate-scale-in relative">
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-500/20 to-transparent" />
+
             {/* Header */}
-            <div className="mb-8 text-center lg:text-left animate-slide-up">
-              <h2 className="text-3xl font-bold text-clinical-900 mb-2">Iniciar Sesión</h2>
-              <p className="text-clinical-600">
-                Acceda a su plataforma médica inteligente
+            <div className="mb-8 text-center animate-slide-up">
+              <div className="mx-auto inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-50 to-primary-100/50 text-primary-600 mb-6 shadow-sm border border-primary-200/30">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h2 className="text-3xl font-extrabold text-clinical-900 mb-3 tracking-tight">Bienvenido de nuevo</h2>
+              <p className="text-clinical-500 font-medium">
+                Ingrese sus credenciales para continuar
               </p>
             </div>
 
             {/* Error display */}
             {error && (
-              <div className="mb-6 flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4 animate-fade-in">
+              <div className="mb-6 flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50/80 backdrop-blur-sm p-4 animate-fade-in shadow-sm">
                 <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger-500" />
                 <p className="text-sm text-danger-700 font-medium">{error}</p>
               </div>
@@ -216,25 +225,21 @@ export function LoginPage() {
             </form>
 
             {/* Trust indicators */}
-            <TrustIndicators />
+            <div className="mt-6 opacity-80 transition-opacity hover:opacity-100">
+              <TrustIndicators />
+            </div>
 
             {/* Register link */}
-            <p className="mt-8 text-center text-sm text-clinical-600">
+            <p className="mt-8 text-center text-sm font-medium text-clinical-500">
               ¿No tiene una cuenta?{' '}
               <Link
                 to="/register"
-                className="font-semibold text-primary-600 hover:text-primary-700 transition-colors underline-offset-2 hover:underline"
+                className="font-bold text-primary-600 hover:text-primary-700 transition-colors underline-offset-4 hover:underline"
               >
                 Registrarse aquí
               </Link>
             </p>
           </div>
-        </div>
-
-        {/* Subtle background pattern */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-10 right-10 w-20 h-20 rounded-full border border-primary-200/20" />
-          <div className="absolute bottom-20 left-10 w-16 h-16 rounded-full border border-primary-200/20" />
         </div>
       </div>
     </div>
