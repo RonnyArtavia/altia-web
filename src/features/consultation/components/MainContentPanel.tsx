@@ -16,7 +16,11 @@ import {
   ChevronUp,
   Stethoscope,
   Phone,
-  Mail
+  Mail,
+  X,
+  Monitor,
+  Printer,
+  Download,
 } from 'lucide-react';
 import type {
   IPSDisplayData,
@@ -332,11 +336,11 @@ function PatientHeader({
             </button>
           )}
           <div>
-            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-0.5">Perfil Clínico</p>
-            <h1 className="text-xl font-bold text-slate-900">
+            <h1 className="text-[60px] font-black text-indigo-600 leading-none tracking-tight -mb-1">Perfil Clínico</h1>
+            <p className="text-xl font-bold text-slate-900 mt-1">
               {patient?.name || 'Paciente'}
               {patient?.age && <span className="text-slate-400 font-normal text-lg ml-2">{patient.age} años</span>}
-            </h1>
+            </p>
             {patient && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500 mt-0.5">
                 <span>{patient.gender}</span>
@@ -399,6 +403,10 @@ export function MainContentPanel({
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // ── Screen preview state ──
+  const [screenPreviewHTML, setScreenPreviewHTML] = React.useState<string | null>(null);
+  const [screenPreviewTitle, setScreenPreviewTitle] = React.useState('');
+
   // ── Output handler for PDF, Email, WhatsApp, Screen ──
   const handleOutputChannel = React.useCallback((channel: OutputChannel, context: string) => {
     const ctx: OutputContext = {
@@ -413,7 +421,14 @@ export function MainContentPanel({
              context === 'pharmacy' ? 'Receta Médica' : 'Resumen Clínico',
       content: buildContentForContext(context, ipsData, clinicalState),
     };
-    handleOutput(channel, ctx);
+
+    if (channel === 'screen') {
+      const html = handleOutput(channel, ctx) as string;
+      setScreenPreviewHTML(html);
+      setScreenPreviewTitle(ctx.title);
+    } else {
+      handleOutput(channel, ctx);
+    }
   }, [patientRecord, ipsData, clinicalState]);
 
   // Auto-scroll to top when consultation starts
@@ -570,6 +585,68 @@ export function MainContentPanel({
           )}
         </div>
       </div>
+
+      {/* ═══ SCREEN PREVIEW MODAL ═══ */}
+      {screenPreviewHTML && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-[92vw] max-w-3xl max-h-[88vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-xl">
+                  <Monitor className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">Vista Previa en Pantalla</h3>
+                  <p className="text-[11px] text-slate-500">{screenPreviewTitle}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    // Print the preview
+                    const printWin = window.open('', '_blank');
+                    if (printWin) {
+                      printWin.document.write(`<html><head><title>${screenPreviewTitle}</title></head><body>${screenPreviewHTML}</body></html>`);
+                      printWin.document.close();
+                      printWin.focus();
+                      setTimeout(() => printWin.print(), 400);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Imprimir
+                </button>
+                <button
+                  onClick={() => setScreenPreviewHTML(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Preview content — rendered HTML */}
+            <div className="flex-1 overflow-y-auto p-6 bg-white">
+              <div
+                className="mx-auto"
+                dangerouslySetInnerHTML={{ __html: screenPreviewHTML }}
+              />
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-3 bg-slate-50 border-t border-slate-200 flex-shrink-0">
+              <button
+                onClick={() => setScreenPreviewHTML(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

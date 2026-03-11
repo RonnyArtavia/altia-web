@@ -84,7 +84,7 @@ export default function TodayPatientsPage() {
                             <Stethoscope className="h-6 w-6 text-blue-600" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-gray-900">Consultas diarias</h1>
+                            <h1 className="text-xl font-bold text-gray-900">Agenda del Día</h1>
                             <p className="text-sm text-gray-500 capitalize">
                                 {format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
                             </p>

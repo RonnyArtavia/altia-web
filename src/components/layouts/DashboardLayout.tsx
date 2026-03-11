@@ -40,7 +40,7 @@ function getNavigationItems(userRole: 'doctor' | 'secretary' = 'doctor'): NavIte
   const basePrefix = userRole === 'doctor' ? '/doctor' : '/assistant'
   return [
     { href: `${basePrefix}/dashboard`, label: 'Panel de Control', icon: Home },
-    { href: `${basePrefix}/today-patients`, label: 'Pacientes de hoy', icon: Stethoscope },
+    { href: `${basePrefix}/today-patients`, label: 'Agenda del Día', icon: Stethoscope },
     { href: `${basePrefix}/patients`, label: 'Pacientes', icon: Users },
     { href: `${basePrefix}/agenda`, label: 'Agenda', icon: Calendar },
     { href: `${basePrefix}/interoperability`, label: 'Interoperabilidad', icon: Share2 },
