@@ -169,6 +169,7 @@ export interface IPSMedication {
   frequency?: string;  // Dosage frequency
   duration?: string;   // Treatment duration
   route?: string;      // Administration route
+  status?: string;     // active, stopped, completed, etc.
 }
 
 export interface IPSCondition {

@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Stethoscope
 } from 'lucide-react';
 import type {
   IPSDisplayData,
@@ -28,6 +29,11 @@ import type {
 import { ClinicalSnapshot } from './ClinicalSnapshot';
 import { IPSDashboardCompact } from './IPSDashboardCompact';
 import { ClinicalSummaryReport } from './ClinicalSummaryReport';
+import { ClinicalSummaryIPS } from './ClinicalSummaryIPS';
+import { PreviousConsultationsPanel } from './PreviousConsultationsPanel';
+import { OrdersPanel } from './OrdersPanel';
+import { ReferralsPanel } from './ReferralsPanel';
+import { MedicalHistoryPanel } from './MedicalHistoryPanel';
 import { cn } from '@/lib/utils';
 
 interface MainContentPanelProps {
@@ -387,17 +393,6 @@ export function MainContentPanel({
         </div>
       </div>
 
-      {/* Sticky Clinical Summary - visible in both 'resumen' and 'resumen-clinico' tabs */}
-      {(activeTab === 'resumen' || activeTab === 'resumen-clinico') && (
-        <div className="sticky top-[118px] z-10 bg-[#f8fafc] px-4 md:px-8 py-3 border-b border-slate-100 shadow-sm">
-          <PatientContextSummary
-            ipsData={ipsData}
-            lastConsultation={consultations && consultations.length > 0 ? consultations[0] : undefined}
-            patient={patientRecord}
-          />
-        </div>
-      )}
-
       {/* Main Content Area */}
       <div
         ref={scrollContainerRef}
@@ -405,64 +400,72 @@ export function MainContentPanel({
       >
         <div className="w-full mx-auto pb-20">
 
-          {/* NOTA EN PROGRESO - Sin contenedor card */}
-          {inConsultation && (
-            <ClinicalSnapshot
-              data={clinicalState}
-              onUpdateSoap={onUpdateSoap}
-              onUpdateFHIR={onUpdateFHIR}
-              onRemoveFHIR={onRemoveFHIR}
-              onUpdateEducation={onUpdateEducation}
+          {/* TAB 1: RESUMEN CLÍNICO IPS */}
+          {activeTab === 'resumen-ips' && (
+            <ClinicalSummaryIPS
+              ipsData={ipsData}
+              vitalSigns={vitalSigns}
+              patientRecord={patientRecord}
+            />
+          )}
+
+          {/* TAB 2: NUEVA CONSULTA (SOAP + Plan FHIR en tiempo real) */}
+          {activeTab === 'nueva-consulta' && (
+            <>
+              {inConsultation ? (
+                <ClinicalSnapshot
+                  data={clinicalState}
+                  onUpdateSoap={onUpdateSoap}
+                  onUpdateFHIR={onUpdateFHIR}
+                  onRemoveFHIR={onRemoveFHIR}
+                  onUpdateEducation={onUpdateEducation}
+                  onGeneratePDF={onGeneratePDF}
+                />
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-100">
+                    <Stethoscope size={32} className="text-indigo-400" />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-700 mb-2">Nueva Consulta</h2>
+                  <p className="text-sm text-slate-500 max-w-md mx-auto">
+                    Inicie la consulta desde el panel del copiloto para comenzar a registrar la nota clínica SOAP en tiempo real.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* TAB 3: CONSULTAS ANTERIORES */}
+          {activeTab === 'consultas-anteriores' && (
+            <PreviousConsultationsPanel
+              encounters={ipsData.encounters || []}
+            />
+          )}
+
+          {/* TAB 4: ÓRDENES */}
+          {activeTab === 'ordenes' && (
+            <OrdersPanel
+              ipsData={ipsData}
+              patientRecord={patientRecord}
               onGeneratePDF={onGeneratePDF}
             />
           )}
 
-          {/* TAB: RESUMEN (DASHBOARD) */}
-          {activeTab === 'resumen' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-              {/* Alerts & Briefing */}
-              {!inConsultation && <AttentionSection ipsData={ipsData} vitalSigns={vitalSigns} />}
-
-              {/* IPS Compact Dashboard */}
-              <div className="mt-2">
-                <IPSDashboardCompact
-                  ipsData={ipsData}
-                  vitalSigns={vitalSigns}
-                  {...(onEncounterClick ? { onEncounterClick } : {})}
-                />
-              </div>
-            </div>
+          {/* TAB 5: REFERENCIAS */}
+          {activeTab === 'referencias' && (
+            <ReferralsPanel
+              ipsData={ipsData}
+              patientRecord={patientRecord}
+              onGeneratePDF={onGeneratePDF}
+            />
           )}
 
-          {/* TAB: RESUMEN CLÍNICO */}
-          {activeTab === 'resumen-clinico' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <ClinicalSummaryReport
-                patientRecord={patientRecord}
-                ipsData={ipsData}
-                vitalSigns={vitalSigns}
-              />
-            </div>
-          )}
-
-          {/* Fallback for other tabs */}
-          {activeTab !== 'resumen' && activeTab !== 'resumen-clinico' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-sm">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                <Sparkles size={32} className="text-slate-300" />
-              </div>
-              <h2 className="text-lg font-bold text-slate-700 mb-2">Vista de {getTabTitle()}</h2>
-              <p className="text-slate-500 max-w-md mx-auto">
-                Esta sección está siendo rediseñada para ofrecer una mejor experiencia clínica.
-                Pronto encontrará aquí información detallada.
-              </p>
-              <button
-                onClick={() => setActiveTab('resumen')}
-                className="mt-6 px-6 py-2 bg-indigo-50 text-indigo-600 rounded-full font-medium text-sm hover:bg-indigo-100 transition-colors"
-              >
-                Volver al Tablero
-              </button>
-            </div>
+          {/* TAB 6: ANTECEDENTES (HISTORIA CLÍNICA) */}
+          {activeTab === 'antecedentes' && (
+            <MedicalHistoryPanel
+              ipsData={ipsData}
+              patientRecord={patientRecord}
+            />
           )}
         </div>
       </div>

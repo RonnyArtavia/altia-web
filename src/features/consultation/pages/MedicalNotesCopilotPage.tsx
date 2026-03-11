@@ -19,6 +19,9 @@ import {
   Stethoscope,
   User,
   History,
+  ClipboardList,
+  ArrowUpRight,
+  BookOpen,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -107,12 +110,15 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
   // Layout detection
   const layoutInfo = useMedicalConsultationLayout();
 
-  // Tab state - matches original exactly
-  const [activeTab, setActiveTab] = useState('resumen');
+  // Tab state - 6 clinical workflow tabs
+  const [activeTab, setActiveTab] = useState('resumen-ips');
   const [openTabs, setOpenTabs] = useState<TabItem[]>([
-    { id: 'resumen', title: 'Resumen IPS', icon: <Activity size={16} /> },
-    { id: 'resumen-clinico', title: 'Resumen Clínico', icon: <Stethoscope size={16} /> },
-    { id: 'soap', title: 'Nota SOAP', icon: <FileText size={16} /> },
+    { id: 'resumen-ips', title: 'Resumen Clínico', icon: <Activity size={16} /> },
+    { id: 'nueva-consulta', title: 'Nueva Consulta', icon: <Stethoscope size={16} /> },
+    { id: 'consultas-anteriores', title: 'Consultas Anteriores', icon: <History size={16} /> },
+    { id: 'ordenes', title: 'Órdenes', icon: <ClipboardList size={16} /> },
+    { id: 'referencias', title: 'Referencias', icon: <ArrowUpRight size={16} /> },
+    { id: 'antecedentes', title: 'Antecedentes', icon: <BookOpen size={16} /> },
   ]);
 
   // Chat panel position & width (resizable)
