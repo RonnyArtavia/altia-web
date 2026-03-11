@@ -1,7 +1,7 @@
 // Assistant Sync Service
 // Handles synchronization between assistant requests and user status
 
-import { doc, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc, Timestamp } from 'firebase/firestore'
 import { firestore } from '@/config/firebase'
 import { assistantRequestService } from './assistantRequestService'
 
@@ -25,23 +25,36 @@ class AssistantSyncService {
     notes?: string
   ): Promise<void> {
     try {
+      console.log('🔄 AssistantSyncService: Starting approval process', {
+        userId,
+        requestId,
+        doctorId,
+        organizationId,
+        notes
+      })
+
       // 1. Update the assistant request
+      console.log('📝 Updating assistant request...')
       await assistantRequestService.approveRequest(requestId, doctorId, doctorId, notes)
+      console.log('✅ Assistant request updated successfully')
 
       // 2. Update the user status
+      console.log('👤 Updating user status...')
       const userRef = doc(firestore, 'users', userId)
       await updateDoc(userRef, {
         assistantStatus: 'approved',
         authorizedBy: doctorId,
-        authorizedAt: new Date().toISOString(),
+        authorizedAt: Timestamp.now(),
         doctorId: doctorId,
         organizationId: organizationId,
-        updatedAt: new Date().toISOString()
+        updatedAt: Timestamp.now()
       })
+      console.log('✅ User status updated successfully')
 
-      console.log('✅ Assistant approved and synced:', userId)
+      console.log('🎉 Assistant approved and synced completely:', userId)
     } catch (error) {
       console.error('❌ Error approving assistant:', error)
+      console.error('❌ Error details:', error)
       throw new Error('Error al aprobar el asistente')
     }
   }
@@ -64,9 +77,9 @@ class AssistantSyncService {
       await updateDoc(userRef, {
         assistantStatus: 'revoked',
         revokedBy: doctorId,
-        revokedAt: new Date().toISOString(),
+        revokedAt: Timestamp.now(),
         revocationNotes: notes,
-        updatedAt: new Date().toISOString()
+        updatedAt: Timestamp.now()
       })
 
       console.log('✅ Assistant rejected and synced:', userId)
@@ -93,9 +106,9 @@ class AssistantSyncService {
       await updateDoc(userRef, {
         assistantStatus: 'suspended',
         suspendedBy: doctorId,
-        suspendedAt: new Date().toISOString(),
+        suspendedAt: Timestamp.now(),
         suspensionNotes: notes,
-        updatedAt: new Date().toISOString()
+        updatedAt: Timestamp.now()
       })
 
       console.log('✅ Assistant suspended and synced:', userId)
@@ -122,13 +135,13 @@ class AssistantSyncService {
       await updateDoc(userRef, {
         assistantStatus: 'approved',
         reactivatedBy: doctorId,
-        reactivatedAt: new Date().toISOString(),
+        reactivatedAt: Timestamp.now(),
         reactivationNotes: notes,
         // Clear suspension fields
         suspendedBy: null,
         suspendedAt: null,
         suspensionNotes: null,
-        updatedAt: new Date().toISOString()
+        updatedAt: Timestamp.now()
       })
 
       console.log('✅ Assistant reactivated and synced:', userId)
@@ -155,14 +168,14 @@ class AssistantSyncService {
       await updateDoc(userRef, {
         assistantStatus: 'revoked',
         revokedBy: doctorId,
-        revokedAt: new Date().toISOString(),
+        revokedAt: Timestamp.now(),
         revocationNotes: notes,
         // Clear authorization fields
         authorizedBy: null,
         authorizedAt: null,
         // Clear doctor association
         doctorId: null,
-        updatedAt: new Date().toISOString()
+        updatedAt: Timestamp.now()
       })
 
       console.log('✅ Assistant revoked and synced:', userId)

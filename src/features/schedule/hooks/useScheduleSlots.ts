@@ -130,8 +130,44 @@ export function isInBreakTime(timeSlot: string, schedule: ScheduleSlots): boolea
 }
 
 /**
+ * Helper function to calculate GCD (Greatest Common Divisor)
+ */
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
+}
+
+/**
+ * Helper function to calculate GCD of multiple numbers
+ */
+function gcdMultiple(numbers: number[]): number {
+  return numbers.reduce(gcd)
+}
+
+/**
+ * Calculate optimal slot duration based on all agendas' slotDuration
+ * This ensures we can display all possible appointment times correctly
+ */
+function calculateOptimalSlotDuration(agendas: any[]): number {
+  if (agendas.length === 0) return 30 // Default
+
+  const slotDurations = agendas
+    .filter(agenda => agenda.enabled && agenda.slotDuration)
+    .map(agenda => agenda.slotDuration)
+
+  if (slotDurations.length === 0) return 30 // Default
+
+  // Find GCD of all slot durations to get the finest granularity
+  const optimalDuration = gcdMultiple(slotDurations)
+
+  console.log('🔧 calculateOptimalSlotDuration - Input durations:', slotDurations, 'Optimal:', optimalDuration)
+
+  // Ensure minimum 5 minutes and maximum 60 minutes
+  return Math.max(5, Math.min(60, optimalDuration))
+}
+
+/**
  * Hook to get all unique time slots for a week and per-day schedules
- * Now uses actual agendas instead of hardcoded default schedule
+ * Now uses actual agendas with proper slot duration calculation
  */
 export function useWeekTimeSlots(doctorId: string, organizationId: string, startDate: Date, agendas: any[] = []) {
   const [loading, setLoading] = useState(false)
@@ -162,6 +198,9 @@ export function useWeekTimeSlots(doctorId: string, organizationId: string, start
       }
     }
 
+    // Calculate optimal slot duration based on all agendas
+    const optimalSlotDuration = calculateOptimalSlotDuration(agendas)
+
     weekDays.forEach(day => {
       const dayKey = day.toISOString().split('T')[0] // YYYY-MM-DD format
       const dayOfWeek = day.getDay()
@@ -179,6 +218,7 @@ export function useWeekTimeSlots(doctorId: string, organizationId: string, start
         console.log(`🔧 Checking agenda for ${dayName}:`, {
           agendaName: agenda.name,
           enabled: agenda.enabled,
+          slotDuration: agenda.slotDuration,
           hasSchedule: !!agenda.schedule,
           daySchedule: agenda.schedule?.[dayName]
         })
@@ -202,13 +242,15 @@ export function useWeekTimeSlots(doctorId: string, organizationId: string, start
         const scheduleConfig: ScheduleSlots = {
           start: earliestStart,
           end: latestEnd,
-          slotDuration: 30, // Default slot duration
+          slotDuration: optimalSlotDuration, // Use calculated optimal slot duration
           // No breaks by default - can be extended later
         }
 
         daySchedules[dayKey] = scheduleConfig
         const slots = generateTimeSlotsFromConfig(scheduleConfig)
         slots.forEach(slot => allTimeSlots.add(slot))
+
+        console.log(`🔧 Generated ${slots.length} slots for ${dayName} with ${optimalSlotDuration}min duration`)
       } else {
         daySchedules[dayKey] = null
       }

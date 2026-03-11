@@ -158,30 +158,37 @@ export function AgendaFilters({
 
       {/* ── Agenda color dots (quick toggle) ── */}
       {agendas.length > 0 && (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {activeAgendas.slice(0, 4).map(agenda => {
             const isVisible = visibleIds.includes(agenda.id)
+            const isSelected = selectedAgendaIds.length > 0 && selectedAgendaIds.includes(agenda.id)
             return (
               <button
                 key={agenda.id}
-                title={agenda.name}
-                onClick={() => {
-                  if (selectedAgendaIds.length === 0) {
-                    onFilterChange(agendas.filter(a => a.id !== agenda.id).map(a => a.id))
-                  } else {
-                    toggleAgenda(agenda.id)
-                  }
-                }}
+                title={`${agenda.name} ${isSelected ? '(Seleccionada)' : isVisible ? '(Visible)' : '(Oculta)'}`}
+                onClick={() => toggleAgenda(agenda.id)}
                 className={cn(
-                  'w-4 h-4 rounded-full border-2 border-white shadow-sm transition-opacity',
-                  !isVisible && 'opacity-30'
+                  'relative w-5 h-5 rounded-full border-2 transition-all duration-200 hover:scale-110',
+                  // Enhanced visual states
+                  isVisible
+                    ? isSelected
+                      ? 'border-blue-400 shadow-md ring-2 ring-blue-200' // Selected agenda
+                      : 'border-white shadow-sm' // Visible but not specifically selected (when all selected)
+                    : 'border-gray-300 opacity-40 hover:opacity-70' // Not visible
                 )}
                 style={{ backgroundColor: agenda.color }}
-              />
+              >
+                {/* Selection indicator */}
+                {isSelected && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+                    <Check className="w-2 h-2 text-white" />
+                  </div>
+                )}
+              </button>
             )
           })}
           {activeAgendas.length > 4 && (
-            <span className="text-xs text-gray-400">+{activeAgendas.length - 4}</span>
+            <span className="text-xs text-gray-400 ml-1">+{activeAgendas.length - 4}</span>
           )}
         </div>
       )}
@@ -225,6 +232,7 @@ export function AgendaFilters({
             <div className="space-y-0.5">
               {agendas.map(agenda => {
                 const isVisible = visibleIds.includes(agenda.id)
+                const isSelected = selectedAgendaIds.length > 0 && selectedAgendaIds.includes(agenda.id)
                 return (
                   <button
                     key={agenda.id}
@@ -232,19 +240,39 @@ export function AgendaFilters({
                     className={cn(
                       'w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-left transition-colors',
                       'hover:bg-gray-50 active:bg-gray-100',
-                      !agenda.enabled && 'opacity-50'
+                      !agenda.enabled && 'opacity-50',
+                      // Highlight selected agendas
+                      isSelected && 'bg-blue-50 border border-blue-200'
                     )}
                   >
-                    <span
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: agenda.color }}
-                    />
+                    <div className="relative">
+                      <span
+                        className={cn(
+                          "w-4 h-4 rounded-full flex-shrink-0 border-2 transition-all",
+                          isVisible
+                            ? isSelected
+                              ? 'border-blue-400 ring-1 ring-blue-200'
+                              : 'border-white shadow-sm'
+                            : 'border-gray-200 opacity-40'
+                        )}
+                        style={{ backgroundColor: agenda.color }}
+                      />
+                      {isSelected && (
+                        <Check className="absolute -top-0.5 -right-0.5 h-3 w-3 text-blue-600 bg-white rounded-full" />
+                      )}
+                    </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className={cn(
+                        "text-sm font-medium truncate",
+                        isSelected ? 'text-blue-900' : 'text-gray-900'
+                      )}>
                         {agenda.name}
                       </p>
-                      <p className="text-xs text-gray-400 truncate">
+                      <p className={cn(
+                        "text-xs truncate",
+                        isSelected ? 'text-blue-600' : 'text-gray-400'
+                      )}>
                         {agenda.doctorName}
                         {agenda.location && ` · ${agenda.location}`}
                       </p>
@@ -252,10 +280,18 @@ export function AgendaFilters({
 
                     {!agenda.enabled ? (
                       <EyeOff className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" />
+                    ) : isSelected ? (
+                      <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-3 w-3 text-blue-600" />
+                      </div>
                     ) : isVisible ? (
-                      <Check className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                      <div className="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center flex-shrink-0">
+                        <Eye className="h-3 w-3 text-gray-400" />
+                      </div>
                     ) : (
-                      <Eye className="h-3.5 w-3.5 text-gray-200 flex-shrink-0" />
+                      <div className="w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <EyeOff className="h-3 w-3 text-gray-300" />
+                      </div>
                     )}
                   </button>
                 )

@@ -27,7 +27,9 @@ import {
   Calendar,
   MoreVertical,
   Trash2,
-  UserMinus
+  UserMinus,
+  Check,
+  X
 } from 'lucide-react'
 import type { AssistantRequest } from '@/services/assistantRequestService'
 import type { UserData } from '@/types'
@@ -137,14 +139,38 @@ export function SecretaryManagementPage() {
     setError(null)
 
     try {
-      console.log('Loading assistant requests...')
+      console.log('Loading assistant requests for doctor UID:', user.uid)
+
+      // Primero, ejecutar migración de solicitudes sin doctorId (solo una vez)
+      try {
+        await assistantRequestService.migratePendingRequestsWithoutDoctorId()
+      } catch (migrationError) {
+        console.warn('Migration warning (can be ignored):', migrationError)
+      }
+
       // Cargar solicitudes pendientes
       try {
         const requests = await assistantRequestService.getPendingRequests()
         console.log('Loaded requests:', requests)
-        // Filtrar solo las solicitudes para este médico
-        const myRequests = requests.filter(req => req.doctorId === user.uid)
-        console.log('My requests:', myRequests)
+        console.log('Requests details:', requests.map(r => ({ id: r.id, doctorId: r.doctorId, doctorLicenseNumber: r.doctorLicenseNumber })))
+
+        // Filtrar por doctorId o por número de licencia médica si doctorId no está presente
+        const myRequests = requests.filter(req => {
+          // Primero intentar filtrar por doctorId
+          if (req.doctorId && req.doctorId === user.uid) {
+            console.log('Found request by doctorId:', req.id)
+            return true
+          }
+
+          // Si no hay doctorId, intentar filtrar por número de licencia
+          if (!req.doctorId && userData?.medicalLicense && req.doctorLicenseNumber === userData.medicalLicense) {
+            console.log('Found request by medical license:', req.id, 'License:', req.doctorLicenseNumber)
+            return true
+          }
+
+          return false
+        })
+        console.log('My requests after filtering:', myRequests)
         setPendingRequests(myRequests)
       } catch (requestError) {
         console.warn('Error loading assistant requests (collection might not exist yet):', requestError)
@@ -196,13 +222,31 @@ export function SecretaryManagementPage() {
   }
 
   const handleApproval = async (request: AssistantRequest, action: 'approve' | 'reject', notes: string) => {
-    if (!user?.uid || !userData?.organizationId) return
+    console.log('🔄 Starting approval process:', { action, requestId: request.id, userId: request.userId })
+    console.log('🔍 User data:', { uid: user?.uid, orgId: userData?.organizationId })
+
+    if (!user?.uid || !userData?.organizationId) {
+      console.error('❌ Missing required data for approval:', {
+        hasUser: !!user?.uid,
+        hasOrgId: !!userData?.organizationId
+      })
+      setError('Error: Faltan datos de usuario para procesar la solicitud')
+      return
+    }
 
     setIsProcessing(true)
     setError(null)
+    console.log('✅ Starting approval with all required data')
 
     try {
       if (action === 'approve') {
+        console.log('✅ Approving assistant with params:', {
+          userId: request.userId,
+          requestId: request.id,
+          doctorId: user.uid,
+          organizationId: userData.organizationId,
+          notes
+        })
         // Usar el servicio de sincronización para aprobar
         await assistantSyncService.approveAssistant(
           request.userId,
@@ -211,8 +255,15 @@ export function SecretaryManagementPage() {
           userData.organizationId,
           notes
         )
+        console.log('✅ Assistant approval completed successfully')
         setSuccessMessage(`Asistente ${request.fullName} aprobado exitosamente`)
       } else {
+        console.log('❌ Rejecting assistant with params:', {
+          userId: request.userId,
+          requestId: request.id,
+          doctorId: user.uid,
+          notes
+        })
         // Usar el servicio de sincronización para rechazar
         await assistantSyncService.rejectAssistant(
           request.userId,
@@ -220,6 +271,7 @@ export function SecretaryManagementPage() {
           user.uid,
           notes
         )
+        console.log('❌ Assistant rejection completed successfully')
         setSuccessMessage(`Solicitud de ${request.fullName} rechazada`)
       }
 
@@ -392,7 +444,7 @@ export function SecretaryManagementPage() {
                         className="bg-green-600 hover:bg-green-700"
                         disabled={isProcessing}
                       >
-                        <UserCheck className="h-4 w-4" />
+                        <Check className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
@@ -400,7 +452,7 @@ export function SecretaryManagementPage() {
                         onClick={() => openDialog(request, 'reject')}
                         disabled={isProcessing}
                       >
-                        <UserX className="h-4 w-4" />
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>

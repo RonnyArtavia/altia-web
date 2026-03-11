@@ -38,6 +38,7 @@ function toAgenda(snap: DocumentSnapshot): Agenda | null {
     doctorName: d.doctorName || '',
     location: d.location || '',
     defaultDuration: d.defaultDuration ?? 30,
+    slotDuration: d.slotDuration ?? 30, // Default 30 minutos para agendas existentes
     bufferMinutes: d.bufferMinutes ?? 0,
     schedule: d.schedule ?? EMPTY_SCHEDULE,
     color: d.color || '#3B82F6',

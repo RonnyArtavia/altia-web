@@ -22,12 +22,13 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAgendaMutations } from '../hooks/useAgendas'
 import { countFutureAppointmentsByAgenda } from '../services/appointmentService'
-import type { Agenda, DayKey, DaySchedule } from '../types/agenda'
+import type { Agenda, DayKey, DaySchedule, Currency } from '../types/agenda'
 import {
   DAY_LABELS,
   DAY_ORDER,
   DEFAULT_AGENDA_COLORS,
   EMPTY_SCHEDULE,
+  CURRENCY_OPTIONS,
 } from '../types/agenda'
 import type { DoctorOption } from '../hooks/useDoctors'
 
@@ -62,10 +63,15 @@ export function AgendaFormDialog({
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
   const [defaultDuration, setDefaultDuration] = useState(30)
+  const [slotDuration, setSlotDuration] = useState(30)
   const [bufferMinutes, setBufferMinutes] = useState(0)
   const [color, setColor] = useState(DEFAULT_AGENDA_COLORS[0])
   const [enabled, setEnabled] = useState(true)
   const [schedule, setSchedule] = useState<Record<DayKey, DaySchedule>>(EMPTY_SCHEDULE)
+  const [consultationFee, setConsultationFee] = useState<number>(0)
+  const [currency, setCurrency] = useState<Currency>('USD')
+
+  console.log('AgendaFormDialog rendered with consultationFee:', consultationFee, 'currency:', currency)
 
   const { create, update, remove, checkOverlap, isSubmitting } = useAgendaMutations(organizationId)
 
@@ -77,19 +83,25 @@ export function AgendaFormDialog({
       setName(editAgenda.name)
       setLocation(editAgenda.location)
       setDefaultDuration(editAgenda.defaultDuration)
+      setSlotDuration(editAgenda.slotDuration || 30)
       setBufferMinutes(editAgenda.bufferMinutes)
       setColor(editAgenda.color)
       setEnabled(editAgenda.enabled)
       setSchedule(editAgenda.schedule)
+      setConsultationFee(editAgenda.consultationFee || 0)
+      setCurrency(editAgenda.currency || 'USD')
     } else {
       setSelectedDoctorId(showDoctorSelector && doctors!.length > 0 ? doctors![0].uid : doctorId)
       setName('')
       setLocation('')
       setDefaultDuration(30)
+      setSlotDuration(30)
       setBufferMinutes(0)
       setColor(DEFAULT_AGENDA_COLORS[0])
       setEnabled(true)
       setSchedule(EMPTY_SCHEDULE)
+      setConsultationFee(0)
+      setCurrency('USD')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editAgenda, open])
@@ -155,11 +167,14 @@ export function AgendaFormDialog({
       doctorName: effectiveDoctorName,
       location: location.trim(),
       defaultDuration,
+      slotDuration,
       bufferMinutes,
       color,
       enabled,
       schedule,
       organizationId,
+      consultationFee: consultationFee > 0 ? consultationFee : undefined,
+      currency: consultationFee > 0 ? currency : undefined,
     }
 
     try {
@@ -269,8 +284,43 @@ export function AgendaFormDialog({
             />
           </div>
 
-          {/* Duración y buffer */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Costo de consulta */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Costo de consulta</Label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select value={currency} onValueChange={(value: Currency) => setCurrency(value)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CURRENCY_OPTIONS).map(([key, option]) => (
+                      <SelectItem key={key} value={key}>
+                        {option.symbol} {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-[2]">
+                <Input
+                  type="number"
+                  min={0}
+                  step={currency === 'USD' ? "0.01" : "1"}
+                  placeholder={currency === 'USD' ? "0.00" : "0"}
+                  value={consultationFee || ''}
+                  onChange={e => setConsultationFee(Number(e.target.value) || 0)}
+                  className="h-9"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Deja en 0 para usar el costo del perfil del médico
+            </p>
+          </div>
+
+          {/* Duración, intervalos y buffer */}
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Duración default (min)</Label>
               <Input
@@ -282,6 +332,19 @@ export function AgendaFormDialog({
                 onChange={e => setDefaultDuration(Number(e.target.value))}
                 className="h-9"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Intervalos disponibles (min)</Label>
+              <Select value={String(slotDuration)} onValueChange={v => setSlotDuration(Number(v))}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 minutos</SelectItem>
+                  <SelectItem value="30">30 minutos</SelectItem>
+                  <SelectItem value="60">60 minutos</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Buffer entre citas (min)</Label>

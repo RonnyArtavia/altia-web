@@ -11,18 +11,24 @@ export interface DaySchedule {
   end: string     // 'HH:mm'
 }
 
+export type Currency = 'USD' | 'CRC'
+
 export interface Agenda {
   id: string
   name: string
   doctorId: string
   doctorName: string
   location: string
-  defaultDuration: number   // minutos
+  defaultDuration: number   // minutos - duración por defecto de citas
+  slotDuration: number      // minutos - intervalo entre slots disponibles (15, 30, 60)
   bufferMinutes: number     // tiempo entre citas
   schedule: Record<DayKey, DaySchedule>
   color: string             // hex, ej: '#3B82F6'
   enabled: boolean
   organizationId: string
+  // Configuración de costo por consulta
+  consultationFee?: number
+  currency?: Currency
   createdAt: Date
   updatedAt: Date
 }
@@ -68,6 +74,11 @@ export const DEFAULT_AGENDA_COLORS = [
   '#06B6D4', // cyan
   '#F97316', // orange
 ]
+
+export const CURRENCY_OPTIONS: Record<Currency, { label: string; symbol: string }> = {
+  USD: { label: 'Dólares', symbol: '$' },
+  CRC: { label: 'Colones', symbol: '₡' }
+}
 
 export const EMPTY_SCHEDULE: Record<DayKey, DaySchedule> = {
   monday:    { enabled: true,  start: '08:00', end: '17:00' },

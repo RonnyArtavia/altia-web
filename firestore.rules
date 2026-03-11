@@ -121,10 +121,30 @@ service cloud.firestore {
 
     // Users collection - users can read/write their own data
     // EMPI Update: Allow 'list' for all authenticated users to support duplicate checks
+    // Registration: Allow limited read access for email validation during registration
     match /users/{userId} {
       allow get: if isAuthenticated() && request.auth.uid == userId;
-      allow list: if isAuthenticated();
+      allow list: if isAuthenticated() ||
+                     // Allow unauthenticated email validation queries (limited to email field only)
+                     (request.query != null &&
+                      request.query.where != null &&
+                      request.query.where.size() == 1 &&
+                      request.query.where[0][0] == 'email') ||
+                     // Allow unauthenticated doctor lookup for assistant registration
+                     (request.query != null &&
+                      request.query.where != null &&
+                      request.query.where.size() == 2 &&
+                      request.query.where[0][0] == 'role' &&
+                      request.query.where[0][2] == 'doctor' &&
+                      request.query.where[1][0] == 'medicalLicense');
       allow write: if isAuthenticated() && request.auth.uid == userId;
+
+      // Allow doctors to update assistant status for their assistants
+      allow update: if isDoctor() &&
+                       resource.data.role == 'secretary' &&
+                       (request.resource.data.assistantStatus != null ||
+                        request.resource.data.authorizedBy != null ||
+                        request.resource.data.doctorId != null);
     }
 
     // Appointment Requests FHIR Collection
@@ -436,6 +456,23 @@ service cloud.firestore {
     // Messages collection for messaging - TEMPORARY: More permissive for debugging
     match /messages/{messageId} {
       allow get, list, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // Assistant Requests collection
+    match /assistantRequests/{requestId} {
+      // Allow creating a request when registering as secretary
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+
+      // Allow doctors to read, approve, and reject requests
+      allow read, update: if isDoctor();
+
+      // Allow secretaries to read their own requests
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // No deletion allowed
       allow delete: if false;
     }
 

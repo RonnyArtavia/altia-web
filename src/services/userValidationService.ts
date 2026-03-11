@@ -121,17 +121,17 @@ class UserValidationService {
 
     console.log('✅ Email format is valid')
 
-    // Use the most reliable method: try creating a temporary account
-    console.log('🔍 Using temporary account method for definitive check...')
-    const tempCheck = await this.testEmailAvailabilityWithTempAccount(email)
-    console.log('📊 Temp account check result:', tempCheck)
+    // Use Firebase Auth's fetchSignInMethodsForEmail method (less invasive)
+    console.log('🔍 Using fetchSignInMethodsForEmail for email existence check...')
+    const authCheck = await this.checkEmailExists(email)
+    console.log('📊 Auth check result:', authCheck)
 
-    if (!tempCheck.available) {
-      console.log('🚫 Email exists (confirmed by temp account test) - blocking registration')
+    if (authCheck.exists) {
+      console.log('🚫 Email exists in Firebase Auth - blocking registration')
       return {
         isValid: true, // Email format is valid
         canProceed: false, // But can't proceed because it exists
-        message: tempCheck.message
+        message: authCheck.message
       }
     }
 

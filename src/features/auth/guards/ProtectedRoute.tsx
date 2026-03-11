@@ -33,6 +33,7 @@ export function ProtectedRoute({
 
   // Check if secretary is pending approval
   if (isPendingSecretary() && location.pathname !== '/assistant/pending-approval') {
+    console.log('🔄 ProtectedRoute: Redirecting pending secretary to approval page')
     return <Navigate to="/assistant/pending-approval" replace />
   }
 
@@ -52,6 +53,11 @@ export function ProtectedRoute({
 
   // Additional check for secretaries accessing system data
   if (userData.role === 'secretary' && !canAccessSystemData() && location.pathname !== '/assistant/pending-approval') {
+    console.log('🚫 ProtectedRoute: Secretary cannot access system data, redirecting to approval page', {
+      canAccess: canAccessSystemData(),
+      assistantStatus: userData.assistantStatus,
+      pathname: location.pathname
+    })
     return <Navigate to="/assistant/pending-approval" replace />
   }
 

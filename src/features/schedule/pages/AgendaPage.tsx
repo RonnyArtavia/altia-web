@@ -46,6 +46,11 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   cancelled: { label: 'Cancelada', color: 'bg-danger/10 text-danger-700' },
 }
 
+// Helper function for GCD calculation
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
+}
+
 type ViewMode = 'day' | 'week' | 'month'
 
 interface AppointmentData {
@@ -161,7 +166,19 @@ export default function AgendaPage() {
     enabled: !!organizationId,
   })
 
-  // Visible agendas filtered by selected doctors and selected agendas
+  // Panel agendas - always show all agendas in left panel, filtered only by doctor selection
+  const panelAgendas = useMemo(() => {
+    let filtered = agendas
+
+    // Filter by selected doctors (for secretaries) - this affects what shows in the panel
+    if (isSecretary && selectedDoctorIds.length > 0) {
+      filtered = filtered.filter(a => selectedDoctorIds.includes(a.doctorId))
+    }
+
+    return filtered
+  }, [agendas, isSecretary, selectedDoctorIds])
+
+  // Visible agendas for calendar data - applies both doctor and agenda filtering
   const visibleAgendas = useMemo(() => {
     let filtered = agendas
 
@@ -170,7 +187,7 @@ export default function AgendaPage() {
       filtered = filtered.filter(a => selectedDoctorIds.includes(a.doctorId))
     }
 
-    // Filter by selected agendas (for both doctors and secretaries)
+    // Filter by selected agendas (for both doctors and secretaries) - this affects calendar data only
     if (selectedAgendaIds.length > 0) {
       filtered = filtered.filter(a => selectedAgendaIds.includes(a.id))
     }
@@ -366,6 +383,20 @@ export default function AgendaPage() {
     }
   }
 
+  const getAgendaSelectionTitle = () => {
+    if (selectedAgendaIds.length === 0) {
+      return 'Todas las agendas'
+    } else if (selectedAgendaIds.length === 1) {
+      const agenda = panelAgendas.find(a => a.id === selectedAgendaIds[0])
+      if (agenda) {
+        return `${agenda.doctorName} - ${agenda.name}`
+      }
+      return 'Agenda seleccionada'
+    } else {
+      return `${selectedAgendaIds.length} agendas seleccionadas`
+    }
+  }
+
   const handleSlotClick = (date: Date, time: string) => {
     setSelectedSlot({ date, time })
     setShowAppointmentDialog(true)
@@ -451,36 +482,40 @@ export default function AgendaPage() {
   }, [agendaFilteredAppointments, searchQuery, statusFilter, typeFilter, showCancelledAppointments])
 
   return (
-    <div className="h-full flex flex-col">
-      {/* ── Top bar ─────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-clinical-100/60 bg-white/80 backdrop-blur-md flex-shrink-0 shadow-sm relative z-10">
-        {/* Left: navigation */}
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={handleToday} className="rounded-lg shadow-sm border-clinical-200 hover:bg-primary-50 hover:text-primary-700 hover:border-primary-200 transition-all font-medium">Hoy</Button>
-          <div className="flex items-center gap-1 bg-clinical-50 p-1 rounded-lg border border-clinical-100">
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm text-clinical-500 transition-all" onClick={handlePreviousPeriod}>
+    <div className="h-screen w-full flex flex-col bg-gray-50 overflow-hidden">
+      {/* ── Top bar (Teams style) ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0 w-full">
+        {/* Left: Title and navigation */}
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-gray-900">Agenda</h1>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={handlePreviousPeriod} className="h-8 w-8 p-0 text-gray-600 hover:bg-gray-100">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm text-clinical-500 transition-all" onClick={handleNextPeriod}>
+            <Button variant="ghost" size="sm" onClick={handleNextPeriod} className="h-8 w-8 p-0 text-gray-600 hover:bg-gray-100">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <h1 className="text-xl font-bold text-clinical-900 capitalize tracking-tight ml-2">{getDateTitle()}</h1>
+          <Button variant="ghost" size="sm" onClick={handleToday} className="text-sm font-medium text-gray-600 hover:bg-gray-100 px-3">
+            Hoy
+          </Button>
         </div>
 
-        {/* Right: controls */}
-        <div className="flex items-center gap-4">
+        {/* Right: controls (Teams style) */}
+        <div className="flex items-center gap-3">
           {/* View Mode Selector */}
-          <div className="flex items-center bg-clinical-50/80 backdrop-blur-sm rounded-xl p-1 shadow-inner border border-clinical-100/50">
+          <div className="flex items-center border border-gray-300 rounded-md">
             {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
               <Button
                 key={mode}
-                variant={viewMode === mode ? 'default' : 'ghost'}
+                variant="ghost"
                 size="sm"
                 onClick={() => setViewMode(mode)}
                 className={cn(
-                  'text-sm h-8 px-4 rounded-lg font-medium transition-all duration-200',
-                  viewMode === mode ? 'bg-white shadow-[0_2px_8px_rgb(0,0,0,0.06)] text-primary-700 border border-clinical-200/60' : 'text-clinical-500 hover:text-clinical-900 hover:bg-white/50'
+                  'text-sm h-8 px-3 font-medium border-r border-gray-300 last:border-r-0 rounded-none first:rounded-l-md last:rounded-r-md',
+                  viewMode === mode
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'text-gray-700 hover:bg-gray-100'
                 )}
               >
                 {mode === 'day' ? 'Día' : mode === 'week' ? 'Semana' : 'Mes'}
@@ -488,43 +523,25 @@ export default function AgendaPage() {
             ))}
           </div>
 
-          {/* Show Cancelled Toggle */}
-          <div className="flex items-center gap-2">
-            <Switch
-              id="show-cancelled"
-              checked={showCancelledAppointments}
-              onCheckedChange={setShowCancelledAppointments}
-            />
-            <label htmlFor="show-cancelled" className="text-sm text-gray-600 cursor-pointer whitespace-nowrap">
-              Canceladas
-            </label>
-          </div>
-
-          {/* Search */}
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-clinical-400 pointer-events-none transition-colors group-focus-within:text-primary-500" />
-            <Input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Buscar paciente…"
-              className="h-10 pl-9 w-56 text-sm rounded-xl bg-clinical-50 border-clinical-200 focus:bg-white focus:ring-primary-400/30 focus:border-primary-400 transition-all shadow-sm"
-            />
+          {/* Date display */}
+          <div className="text-lg font-medium text-gray-900">
+            {getDateTitle()}
           </div>
 
           {/* New Appointment Button */}
           <Button
-            size="default"
+            size="sm"
             onClick={() => { setSelectedSlot({ date: new Date(), time: '09:00' }); setShowAppointmentDialog(true) }}
-            className="gap-2 rounded-xl shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-primary-600 to-primary-500 font-semibold"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4"
           >
-            <Plus className="h-4 w-4" />
-            Nueva Cita
+            <Plus className="h-4 w-4 mr-1" />
+            Nuevo
           </Button>
         </div>
       </div>
 
       {/* ── Main area: left panel + calendar ─────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden w-full min-h-0">
         {/* Left panel */}
         <AgendaLeftPanel
           isSecretary={isSecretary}
@@ -532,21 +549,24 @@ export default function AgendaPage() {
           selectedDoctorIds={selectedDoctorIds}
           onDoctorToggle={handleDoctorToggle}
           onAllDoctors={() => setSelectedDoctorIds([])}
-          agendas={visibleAgendas}
+          agendas={panelAgendas}
           selectedAgendaIds={selectedAgendaIds}
           onAgendaToggle={handleAgendaToggle}
           onAllAgendas={() => setSelectedAgendaIds([])}
           onCreateAgenda={() => { setEditingAgenda(null); setShowAgendaFormDialog(true) }}
           onEditAgenda={(a) => { setEditingAgenda(a); setShowAgendaFormDialog(true) }}
           onBlockAgenda={(a) => { setBlockTargetAgendaId(a.id); setBlockTargetAgendaName(a.name); setShowBlockDialog(true) }}
+          selectedDate={selectedDate}
+          onDateSelect={setSelectedDate}
+          appointments={appointments}
         />
 
-        {/* Calendar */}
-        <div className="flex-1 overflow-auto">
+        {/* Calendar (Teams style) */}
+        <div className="flex-1 overflow-auto bg-white min-w-0">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" />
                 <p className="text-gray-600">Cargando agenda...</p>
               </div>
             </div>
@@ -784,62 +804,71 @@ function DayView({
   getAppointmentColor,
   getAgendaCSS
 }: DayViewProps) {
-  // Generate time slots based on actual agendas instead of hardcoded times
-  const timeSlots = useMemo(() => {
-    console.log('🔧 DayView - Processing agendas:', visibleAgendas)
+  const calendarGridRef = useRef<HTMLDivElement>(null)
 
-    if (visibleAgendas.length === 0) {
-      console.log('🔧 DayView - No agendas found')
-      return [] // No time slots if no agendas
-    }
+  // Generate time slots from 12 AM to 11 PM with agenda availability info
+  const { timeSlots, optimalSlotDuration, agendaScheduleRanges } = useMemo(() => {
+    // Calculate optimal slot duration based on all agendas
+    const slotDurations = visibleAgendas
+      .filter(agenda => agenda.enabled && agenda.slotDuration)
+      .map(agenda => agenda.slotDuration)
+
+    const optimalSlotDuration = slotDurations.length > 0
+      ? slotDurations.reduce((a, b) => gcd(a, b))
+      : 30
+
+    // Ensure minimum 15 minutes and maximum 60 minutes for better Teams-like display
+    const finalSlotDuration = Math.max(15, Math.min(60, optimalSlotDuration))
 
     // Get day name from date
     const dayOfWeek = date.getDay()
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const dayName = dayNames[dayOfWeek]
 
-    console.log(`🔧 DayView - Looking for schedules for ${dayName} (day ${dayOfWeek})`)
-
-    // Find the earliest start time and latest end time from all enabled agendas for this day
-    let earliestStart: string | null = null
-    let latestEnd: string | null = null
-    let hasScheduleForDay = false
+    // Collect all agenda schedule ranges for this day
+    const agendaRanges: Array<{ start: number; end: number }> = []
 
     visibleAgendas.forEach(agenda => {
       if (!agenda.enabled || !agenda.schedule?.[dayName]?.enabled) return
 
       const daySchedule = agenda.schedule[dayName]
-      hasScheduleForDay = true
+      const [startHour, startMinute] = daySchedule.start.split(':').map(Number)
+      const [endHour, endMinute] = daySchedule.end.split(':').map(Number)
 
-      if (!earliestStart || daySchedule.start < earliestStart) {
-        earliestStart = daySchedule.start
-      }
-      if (!latestEnd || daySchedule.end > latestEnd) {
-        latestEnd = daySchedule.end
-      }
+      agendaRanges.push({
+        start: startHour * 60 + startMinute,
+        end: endHour * 60 + endMinute
+      })
     })
 
-    if (!hasScheduleForDay || !earliestStart || !latestEnd) {
-      return [] // No schedule for this day
-    }
-
-    // Generate time slots every 30 minutes
+    // Generate ALL time slots from 12 AM (00:00) to 11 PM (23:00)
     const slots: string[] = []
-    const [startHour, startMinute] = earliestStart.split(':').map(Number)
-    const [endHour, endMinute] = latestEnd.split(':').map(Number)
+    const startTime = 0 // 12 AM = 0 minutes
+    const endTime = 23 * 60 // 11 PM = 23:00
 
-    const startTimeInMinutes = startHour * 60 + startMinute
-    const endTimeInMinutes = endHour * 60 + endMinute
-
-    for (let time = startTimeInMinutes; time < endTimeInMinutes; time += 30) {
+    for (let time = startTime; time <= endTime; time += finalSlotDuration) {
       const hour = Math.floor(time / 60)
       const minutes = time % 60
       const timeString = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
       slots.push(timeString)
     }
 
-    return slots
+    return {
+      timeSlots: slots,
+      optimalSlotDuration: finalSlotDuration,
+      agendaScheduleRanges: agendaRanges
+    }
   }, [visibleAgendas, date])
+
+  // Helper function to check if a time slot is within any agenda schedule
+  const isSlotAvailable = (timeSlot: string): boolean => {
+    const [hour, minute] = timeSlot.split(':').map(Number)
+    const timeInMinutes = hour * 60 + minute
+
+    return agendaScheduleRanges.some(range =>
+      timeInMinutes >= range.start && timeInMinutes < range.end
+    )
+  }
 
   const dayAppointments = appointments.filter(apt => isSameDay(new Date(apt.start), date))
 
@@ -849,156 +878,333 @@ function DayView({
     const currentHour = now.getHours()
     const currentMinute = now.getMinutes()
 
-    // Calculate position relative to 8 AM start time
-    const startHour = 8
-    const minutesFromStart = (currentHour - startHour) * 60 + currentMinute
-    const slotsFromStart = minutesFromStart / 30 // 30-minute slots
+    // Calculate position relative to 12 AM start time
+    const minutesFromMidnight = currentHour * 60 + currentMinute
+    const slotsFromStart = minutesFromMidnight / optimalSlotDuration
 
     return slotsFromStart * 60 // 60px per slot
   }
 
+  // Auto-scroll to current time (Teams behavior)
+  useEffect(() => {
+    if (calendarGridRef.current && isToday(date) && timeSlots.length > 0) {
+      const scrollToCurrentTime = () => {
+        const now = new Date()
+        const currentHour = now.getHours()
+        const currentMinute = now.getMinutes()
+
+        // Calculate position to scroll to (Teams-style: show current time with context above)
+        const minutesFromMidnight = currentHour * 60 + currentMinute
+        const slotsFromStart = minutesFromMidnight / optimalSlotDuration
+
+        // Show 2 hours of context above the current time (like Teams does)
+        const contextMinutes = 2 * 60 // 2 hours
+        const contextSlots = contextMinutes / optimalSlotDuration
+        const scrollPosition = Math.max(0, (slotsFromStart - contextSlots) * 60)
+
+        calendarGridRef.current?.scrollTo({
+          top: scrollPosition,
+          behavior: 'smooth'
+        })
+      }
+
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(scrollToCurrentTime, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [date, optimalSlotDuration, timeSlots.length]) // Re-run when date, slot duration, or timeSlots change
+
   return (
-    <div className="flex h-full">
-      {/* Time labels */}
-      <div className="w-16 flex-shrink-0 border-r bg-white pt-4">
-        {timeSlots.map((slot, index) => {
-          const [hour, minute] = slot.split(':').map(Number)
-          const showHourLabel = minute === 0
+    <div className="h-full bg-white w-full">
+      {/* Single scrollable container for both time labels and calendar */}
+      <div ref={calendarGridRef} className="h-full overflow-auto">
+        <div className="flex min-h-full">
+          {/* Time labels (Teams style) */}
+          <div className="w-20 flex-shrink-0 border-r border-gray-200 bg-gray-50">
+            {timeSlots.map((slot, index) => {
+              const [hour, minute] = slot.split(':').map(Number)
+              const showHourLabel = minute === 0
+
+              return (
+                <div
+                  key={slot}
+                  className="relative h-[60px] border-b border-gray-100"
+                >
+                  {showHourLabel && (
+                    <div className="absolute -top-2 right-2 text-xs text-gray-600 font-medium">
+                      {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Calendar grid (Teams style) */}
+          <div className="flex-1 relative min-w-0">
+        {timeSlots.map((slot) => {
+          const isInSchedule = isSlotAvailable(slot)
 
           return (
             <div
               key={slot}
-              className="relative border-b bg-white h-[60px] border-gray-200"
-            >
-              {showHourLabel && (
-                <div className="absolute top-0 w-full text-center text-xs text-gray-500 mt-1">
-                  {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
-                </div>
+              className={cn(
+                "border-b border-gray-100 relative h-[60px] transition-colors cursor-pointer",
+                isInSchedule
+                  ? "bg-white hover:bg-blue-50"
+                  : "bg-gray-50 hover:bg-gray-100"
               )}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.currentTarget.classList.remove('bg-blue-100')
+                try {
+                  const data = JSON.parse(e.dataTransfer.getData('application/json'))
+                  if (data.appointmentId && onReschedule) {
+                    const apt = appointments.find(a => a.id === data.appointmentId)
+                    if (apt) onReschedule(apt, date, slot)
+                  }
+                } catch { /* ignore */ }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.currentTarget.classList.add('bg-blue-100')
+              }}
+              onDragLeave={(e) => {
+                e.currentTarget.classList.remove('bg-blue-100')
+              }}
+            >
+              <button
+                className="w-full h-full cursor-pointer flex items-center justify-center"
+                onClick={() => onSlotClick(date, slot)}
+                title={isInSchedule ? "Horario de agenda" : "Fuera de horario de agenda"}
+              >
+                {!isInSchedule && (
+                  <span className="text-xs text-gray-500 select-none opacity-50">
+                    Fuera de horario
+                  </span>
+                )}
+              </button>
             </div>
           )
         })}
-      </div>
-
-      {/* Calendar grid */}
-      <div className="flex-1 relative pt-4">
-        {timeSlots.map((slot) => (
-          <div
-            key={slot}
-            className="border-b relative bg-white h-[60px] border-gray-200 hover:bg-blue-50/50 transition-colors"
-            onDrop={(e) => {
-              e.preventDefault()
-              e.currentTarget.classList.remove('bg-blue-100')
-              try {
-                const data = JSON.parse(e.dataTransfer.getData('application/json'))
-                if (data.appointmentId && onReschedule) {
-                  const apt = appointments.find(a => a.id === data.appointmentId)
-                  if (apt) onReschedule(apt, date, slot)
-                }
-              } catch { /* ignore */ }
-            }}
-            onDragOver={(e) => {
-              e.preventDefault()
-              e.currentTarget.classList.add('bg-blue-100')
-            }}
-            onDragLeave={(e) => {
-              e.currentTarget.classList.remove('bg-blue-100')
-            }}
-          >
-            <button
-              className="w-full h-full cursor-pointer transition-colors"
-              onClick={() => onSlotClick(date, slot)}
-            />
-          </div>
-        ))}
 
         {/* Block overlays */}
         {blocks.filter(b => isBlockForDay(b, date)).map(block => (
           <BlockOverlay key={block.id} block={block} />
         ))}
 
-        {/* Current time indicator */}
+        {/* Current time indicator (Teams style) */}
         {isToday(date) && (
           <div
-            className="absolute left-0 right-0 h-0.5 bg-blue-500 z-20"
+            className="absolute left-0 right-0 h-0.5 bg-blue-600 z-20"
             style={{
-              top: `${getCurrentTimePosition() + 16}px`, // +16 for the padding top
+              top: `${getCurrentTimePosition()}px`,
             }}
           >
-            <div className="w-2 h-2 bg-blue-500 rounded-full -ml-1 -mt-1" />
+            <div className="w-2 h-2 bg-blue-600 rounded-full -ml-1 -mt-1" />
           </div>
         )}
 
-        {/* Appointments */}
-        {dayAppointments.map((appointment) => {
-          const startTime = new Date(appointment.start)
-          const startSlot = (startTime.getHours() - 8) * 2 + (startTime.getMinutes() >= 30 ? 1 : 0)
-          const top = startSlot * 60
+        {/* Appointments with overlap detection */}
+        {(() => {
+          // Calculate layout for overlapping appointments (same logic as WeekView)
+          const calculateAppointmentLayout = (
+            appointments: AppointmentData[],
+            timeSlots: string[],
+            slotDuration: number,
+            slotHeight: number
+          ): Array<{
+            appointment: AppointmentData
+            position: { top: number; height: number } | null
+            layout: { left: number; width: number }
+          }> => {
+            if (appointments.length === 0) return []
 
-          // Check if appointment is in the past (including current time)
-          const now = new Date()
-          const isPastAppointment = new Date(appointment.end) <= now
-          const isCancelled = appointment.status === 'cancelled'
+            // Calculate position for each appointment
+            const appointmentsWithPosition = appointments.map(appointment => {
+              const startTime = new Date(appointment.start)
+              const endTime = new Date(appointment.end)
+              const startHour = startTime.getHours()
+              const startMinute = startTime.getMinutes()
+              const endHour = endTime.getHours()
+              const endMinute = endTime.getMinutes()
 
-          const isInteractive = !isPastAppointment && !isCancelled
+              const startTimeInMinutes = startHour * 60 + startMinute
+              const endTimeInMinutes = endHour * 60 + endMinute
 
-          const agendaCSS = (!isPastAppointment && !isCancelled) ? getAgendaCSS?.(appointment) : null
+              // Calculate position based on 12 AM start time
+              const startMinutesFromMidnight = startTimeInMinutes
+              const endMinutesFromMidnight = endTimeInMinutes
 
-          return (
-            <div
-              key={appointment.id}
-              className={cn(
-                "absolute left-2 right-2 rounded-xl p-2.5 z-10 text-left transition-all duration-300 border-l-[3px]",
-                // Different styles based on appointment status
-                isInteractive
-                  ? "cursor-pointer hover:shadow-[0_8px_20px_rgb(0,0,0,0.08)] hover:-translate-y-0.5 hover:scale-[1.01]"
-                  : "cursor-default opacity-75 backdrop-blur-sm",
-                // Color scheme: use agenda color if available, else default by type
-                agendaCSS
-                  ? "text-clinical-800 shadow-sm"
-                  : appointment.type === 'telemedicine'
-                    ? isPastAppointment
-                      ? "bg-success-50/80 border-success-300 text-success-800 backdrop-blur-sm"
-                      : isCancelled
-                        ? "bg-clinical-50/80 border-clinical-300 text-clinical-500 backdrop-blur-sm"
-                        : "bg-success-50 border-success-500 text-success-800 shadow-sm"
-                    : isPastAppointment
-                      ? "bg-accent-50/80 border-accent-300 text-accent-800 backdrop-blur-sm"
-                      : isCancelled
-                        ? "bg-clinical-50/80 border-clinical-300 text-clinical-500 backdrop-blur-sm"
-                        : "bg-blue-50 border-blue-500 text-blue-800 shadow-sm"
-              )}
-              style={{
-                top: `${top + 16}px`,
-                height: '58px',
-                ...(agendaCSS ? { borderLeftColor: agendaCSS.borderLeftColor, backgroundColor: agendaCSS.backgroundColor } : {}),
-              }}
-              onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
-              draggable={isInteractive}
-              onDragStart={(e) => {
-                if (!isInteractive) {
-                  e.preventDefault()
-                  return
+              const startSlotsFromBegin = startMinutesFromMidnight / slotDuration
+              const endSlotsFromBegin = endMinutesFromMidnight / slotDuration
+
+              const top = Math.max(0, startSlotsFromBegin * slotHeight)
+              const height = Math.max(slotHeight * 0.8, (endSlotsFromBegin - startSlotsFromBegin) * slotHeight)
+
+              return {
+                appointment,
+                position: { top, height },
+                startTime: startTime.getTime(),
+                endTime: endTime.getTime()
+              }
+            }).filter(apt => apt.position !== null)
+
+            // Sort by start time for proper layout calculation
+            appointmentsWithPosition.sort((a, b) => a.startTime - b.startTime)
+
+            // Detect overlapping appointments and assign columns
+            const columns: Array<{
+              appointments: typeof appointmentsWithPosition[0][]
+              endTime: number
+            }> = []
+
+            appointmentsWithPosition.forEach(apt => {
+              // Find the first available column (one that doesn't overlap with this appointment)
+              let assignedColumn = -1
+              for (let i = 0; i < columns.length; i++) {
+                if (columns[i].endTime <= apt.startTime) {
+                  assignedColumn = i
+                  break
                 }
-                e.dataTransfer.setData('application/json', JSON.stringify({
-                  appointmentId: appointment.id,
-                  originalTime: format(startTime, 'HH:mm')
-                }))
-              }}
-            >
-              <div className="text-xs font-semibold">
-                {format(startTime, 'HH:mm')} - {appointment.patientName}
-              </div>
-              <div className="text-xs truncate flex items-center">
-                {appointment.type === 'telemedicine' && (
-                  <Video className="h-3 w-3 mr-1" />
+              }
+
+              // If no available column, create a new one
+              if (assignedColumn === -1) {
+                assignedColumn = columns.length
+                columns.push({
+                  appointments: [],
+                  endTime: apt.endTime
+                })
+              }
+
+              // Assign appointment to column and update end time
+              columns[assignedColumn].appointments.push(apt)
+              columns[assignedColumn].endTime = Math.max(columns[assignedColumn].endTime, apt.endTime)
+            })
+
+            // Calculate layout dimensions
+            const totalColumns = columns.length
+            let columnWidth: number
+            let columnSpacing: number
+
+            if (totalColumns === 1) {
+              // Single appointment gets almost full width
+              columnWidth = 95
+              columnSpacing = 0
+            } else {
+              // Multiple appointments need to share space
+              const availableWidth = 92
+              const totalGap = (totalColumns - 1) * 2 // 2% gap between columns
+              columnWidth = (availableWidth - totalGap) / totalColumns
+              columnSpacing = 2
+            }
+
+            // Assign layout to each appointment
+            const result: Array<{
+              appointment: AppointmentData
+              position: { top: number; height: number } | null
+              layout: { left: number; width: number }
+            }> = []
+
+            columns.forEach((column, columnIndex) => {
+              column.appointments.forEach(apt => {
+                // Calculate left position as percentage
+                const leftMargin = totalColumns === 1 ? 2 : 4 // More margin for multiple appointments
+                const leftPercentage = leftMargin + (columnIndex * (columnWidth + columnSpacing))
+
+                // Ensure the appointment doesn't exceed the container width
+                const maxLeft = 96 - columnWidth
+                const finalLeft = Math.min(leftPercentage, maxLeft)
+                const finalWidth = Math.min(columnWidth, 96 - finalLeft)
+
+                result.push({
+                  appointment: apt.appointment,
+                  position: apt.position,
+                  layout: {
+                    left: finalLeft,
+                    width: finalWidth
+                  }
+                })
+              })
+            })
+
+            return result
+          }
+
+          // Calculate layout for all appointments
+          const appointmentLayout = calculateAppointmentLayout(dayAppointments, timeSlots, optimalSlotDuration, 60)
+
+          return appointmentLayout.map(({ appointment, position, layout }) => {
+            if (!position) return null
+
+            const startTime = new Date(appointment.start)
+
+            // Check if appointment is in the past (including current time)
+            const now = new Date()
+            const isPastAppointment = new Date(appointment.end) <= now
+            const isCancelled = appointment.status === 'cancelled'
+
+            const isInteractive = !isPastAppointment && !isCancelled
+            const agendaCSS = (!isPastAppointment && !isCancelled) ? getAgendaCSS?.(appointment) : null
+
+            return (
+              <div
+                key={appointment.id}
+                className={cn(
+                  "absolute rounded-md p-3 z-10 text-left transition-all duration-200 border-l-4",
+                  // Teams-style clean appearance
+                  isInteractive
+                    ? "cursor-pointer hover:shadow-md hover:scale-[1.02]"
+                    : "cursor-default opacity-70",
+                  // Simplified color scheme like Teams
+                  agendaCSS
+                    ? "text-gray-800 shadow-sm"
+                    : isCancelled
+                      ? "bg-gray-100 border-gray-400 text-gray-600"
+                      : appointment.type === 'telemedicine'
+                        ? "bg-green-100 border-green-500 text-green-800"
+                        : "bg-blue-100 border-blue-500 text-blue-800"
                 )}
-                {isCancelled && <span className="text-xs mr-1">[Cancelada]</span>}
-                {appointment.reason || 'Consulta general'}
+                style={{
+                  top: `${position.top}px`,
+                  height: `${position.height}px`,
+                  left: `${layout.left}%`,
+                  width: `${layout.width}%`,
+                  ...(agendaCSS ? {
+                    borderLeftColor: agendaCSS.borderLeftColor,
+                    backgroundColor: agendaCSS.backgroundColor + '20'
+                  } : {}),
+                }}
+                onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
+                draggable={isInteractive}
+                onDragStart={(e) => {
+                  if (!isInteractive) {
+                    e.preventDefault()
+                    return
+                  }
+                  e.dataTransfer.setData('application/json', JSON.stringify({
+                    appointmentId: appointment.id,
+                    originalTime: format(startTime, 'HH:mm')
+                  }))
+                }}
+              >
+                <div className="font-semibold text-sm mb-1">
+                  {appointment.patientName}
+                </div>
+                <div className="text-xs text-gray-600 flex items-center">
+                  {appointment.type === 'telemedicine' && (
+                    <Video className="h-3 w-3 mr-1" />
+                  )}
+                  {isCancelled && <span className="mr-1">[Cancelada]</span>}
+                  {appointment.reason || 'Consulta general'}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })
+        })()}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1034,6 +1240,7 @@ function WeekView({
   getAppointmentColor,
   getAgendaCSS
 }: WeekViewProps) {
+  const weekCalendarRef = useRef<HTMLDivElement>(null)
   const weekStart = startOfWeek(date, { weekStartsOn: 1 })
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
@@ -1212,6 +1419,45 @@ function WeekView({
     return result
   }
 
+  // Auto-scroll to current time for current week (Teams behavior)
+  useEffect(() => {
+    if (weekCalendarRef.current && timeSlots.length > 0) {
+      // Check if we're viewing the current week
+      const today = new Date()
+      const isCurrentWeek = weekDays.some(day => isSameDay(day, today))
+
+      if (isCurrentWeek) {
+        const scrollToCurrentTime = () => {
+          const now = new Date()
+          const currentHour = now.getHours()
+          const currentMinute = now.getMinutes()
+
+          // Calculate position to scroll to (Teams-style: show current time with context above)
+          const minutesFromMidnight = currentHour * 60 + currentMinute
+
+          // Use 30-minute slots as default for week view
+          const slotDuration = 30
+          const slotHeight = 60
+          const slotsFromStart = minutesFromMidnight / slotDuration
+
+          // Show 2 hours of context above the current time (like Teams does)
+          const contextMinutes = 2 * 60 // 2 hours
+          const contextSlots = contextMinutes / slotDuration
+          const scrollPosition = Math.max(0, (slotsFromStart - contextSlots) * slotHeight)
+
+          weekCalendarRef.current?.scrollTo({
+            top: scrollPosition,
+            behavior: 'smooth'
+          })
+        }
+
+        // Small delay to ensure DOM is ready
+        const timer = setTimeout(scrollToCurrentTime, 100)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [date, timeSlots, weekDays]) // Re-run when date, timeSlots, or weekDays change
+
   // Show loading state
   if (loading) {
     return (
@@ -1294,52 +1540,53 @@ function WeekView({
       </div>
 
       {/* Week grid */}
-      <div className="flex-1 flex overflow-auto min-h-0">
-        {/* Time labels */}
-        <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-white">
-          {timeSlots.map((timeSlot, index) => {
-            const [hour, minute] = timeSlot.split(':').map(Number)
-            const showLabel = minute === 0
+      <div ref={weekCalendarRef} className="flex-1 overflow-auto min-h-0">
+        <div className="flex min-h-full">
+          {/* Time labels */}
+          <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-white">
+            {timeSlots.map((timeSlot, index) => {
+              const [hour, minute] = timeSlot.split(':').map(Number)
+              const showLabel = minute === 0
 
-            // Check if the NEXT slot starts a new hour (for bottom border)
-            const nextSlotIndex = index + 1
-            const isLastSlot = nextSlotIndex >= timeSlots.length
-            let nextSlotStartsNewHour = false
+              // Check if the NEXT slot starts a new hour (for bottom border)
+              const nextSlotIndex = index + 1
+              const isLastSlot = nextSlotIndex >= timeSlots.length
+              let nextSlotStartsNewHour = false
 
-            if (!isLastSlot) {
-              const [nextHour, nextMinute] = timeSlots[nextSlotIndex].split(':').map(Number)
-              nextSlotStartsNewHour = nextMinute === 0
-            }
+              if (!isLastSlot) {
+                const [nextHour, nextMinute] = timeSlots[nextSlotIndex].split(':').map(Number)
+                nextSlotStartsNewHour = nextMinute === 0
+              }
 
-            return (
-              <div
-                key={timeSlot}
-                className={cn(
-                  "relative border-b bg-white",
-                  nextSlotStartsNewHour || isLastSlot ? "border-gray-300 border-solid" : "border-gray-200 border-dashed"
-                )}
-                style={{ height: `${slotHeight}px` }}
-              >
-                {showLabel && (
-                  <div
-                    className="absolute top-0 w-full text-center"
-                    style={{
-                      color: 'var(--neutralPrimaryAlt)',
-                      fontSize: '12px',
-                      fontWeight: 400,
-                      marginTop: '3px'
-                    }}
-                  >
-                    {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+              return (
+                <div
+                  key={timeSlot}
+                  className={cn(
+                    "relative border-b bg-white",
+                    nextSlotStartsNewHour || isLastSlot ? "border-gray-300 border-solid" : "border-gray-200 border-dashed"
+                  )}
+                  style={{ height: `${slotHeight}px` }}
+                >
+                  {showLabel && (
+                    <div
+                      className="absolute top-0 w-full text-center"
+                      style={{
+                        color: 'var(--neutralPrimaryAlt)',
+                        fontSize: '12px',
+                        fontWeight: 400,
+                        marginTop: '3px'
+                      }}
+                    >
+                      {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
-        {/* Days columns */}
-        <div className="flex flex-1 min-w-0">
+          {/* Days columns */}
+          <div className="flex flex-1 min-w-0">
           {weekDays.map((day) => {
             const daySchedule = getDayScheduleFromWeek(daySchedules, day)
             const dayAppointments = appointments.filter(apt => isSameDay(new Date(apt.start), day))
@@ -1376,12 +1623,14 @@ function WeekView({
                         <div
                           key={timeSlot}
                           className={cn(
-                            "border-b relative bg-white",
+                            "border-b relative cursor-pointer",
                             nextTimeSlotStartsNewHour || isLastTimeSlot ? "border-gray-300 border-solid" : "border-gray-200 border-dashed",
-                            isAvailable ? "hover:bg-blue-50/50 transition-colors" : "bg-gray-50"
+                            isAvailable
+                              ? "bg-white hover:bg-blue-50/50 transition-colors"
+                              : "bg-gray-50 hover:bg-gray-100 transition-colors"
                           )}
                           style={{ height: `${slotHeight}px` }}
-                          onDrop={isAvailable ? (e) => {
+                          onDrop={(e) => {
                             e.preventDefault()
                             e.currentTarget.classList.remove('bg-blue-100')
                             try {
@@ -1391,21 +1640,26 @@ function WeekView({
                                 if (apt) onReschedule(apt, day, timeSlot)
                               }
                             } catch { /* ignore */ }
-                          } : undefined}
-                          onDragOver={isAvailable ? (e) => {
+                          }}
+                          onDragOver={(e) => {
                             e.preventDefault()
                             e.currentTarget.classList.add('bg-blue-100')
-                          } : undefined}
-                          onDragLeave={isAvailable ? (e) => {
+                          }}
+                          onDragLeave={(e) => {
                             e.currentTarget.classList.remove('bg-blue-100')
-                          } : undefined}
+                          }}
                         >
-                          {isAvailable && (
-                            <button
-                              className="w-full h-full cursor-pointer transition-colors"
-                              onClick={() => onSlotClick(day, timeSlot)}
-                            />
-                          )}
+                          <button
+                            className="w-full h-full cursor-pointer transition-colors flex items-center justify-center"
+                            onClick={() => onSlotClick(day, timeSlot)}
+                            title={isAvailable ? "Horario de agenda" : "Fuera de horario de agenda"}
+                          >
+                            {!isAvailable && (
+                              <span className="text-xs text-gray-400 select-none opacity-40">
+                                Fuera de horario
+                              </span>
+                            )}
+                          </button>
                         </div>
                       )
                     })}
@@ -1551,6 +1805,7 @@ function WeekView({
               </div>
             )
           })}
+          </div>
         </div>
       </div>
     </div>

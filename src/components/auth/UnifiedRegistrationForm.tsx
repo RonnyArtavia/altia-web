@@ -255,12 +255,20 @@ export function UnifiedRegistrationForm() {
           // Create assistant request
           const userData = useAuthStore.getState().userData
           if (userData) {
+            // First validate and get doctor information
+            const doctorInfo = await assistantRequestService.validateDoctorLicense(formData.doctorLicenseNumber!)
+
+            if (!doctorInfo.isValid) {
+              setError('No se encontró un médico con este número de colegiatura. Verifica el número e intenta nuevamente.')
+              return
+            }
+
             await assistantRequestService.createAssistantRequest(
               userData.uid,
               formData.email,
               formData.fullName!,
-              '',
-              '',
+              doctorInfo.doctorId!,
+              doctorInfo.doctorName!,
               formData.doctorLicenseNumber!
             )
 
@@ -902,8 +910,8 @@ export function UnifiedRegistrationForm() {
               </>
             )}
 
-            {/* Trust indicators - Show on all steps except success */}
-            {currentStep !== 'success' && <TrustIndicators />}
+            {/* Trust indicators - Show on all steps */}
+            <TrustIndicators />
 
             {/* Login link */}
             <p className="mt-8 text-center text-sm text-clinical-600">

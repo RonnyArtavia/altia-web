@@ -454,7 +454,7 @@ export function AppointmentDialog({
                             </div>
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent className="w-auto p-0 z-[60] bg-white shadow-xl border-2 border-gray-200" align="start">
                           <Calendar
                             mode="single"
                             selected={appointmentDate}
@@ -466,6 +466,8 @@ export function AppointmentDialog({
                             }}
                             disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                             initialFocus
+                            locale={es}
+                            weekStartsOn={1}
                           />
                         </PopoverContent>
                       </Popover>
@@ -485,7 +487,7 @@ export function AppointmentDialog({
                             </div>
                           </div>
                         </SelectTrigger>
-                        <SelectContent className="max-h-60">
+                        <SelectContent className="max-h-60 z-[60] bg-white shadow-xl border-2 border-gray-200">
                           {availableSlots.map((slot) => (
                             <SelectItem
                               key={slot.time}
@@ -548,7 +550,7 @@ export function AppointmentDialog({
                           <SelectValue placeholder="Sin agenda asignada" />
                         </div>
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[60] bg-white shadow-xl border-2 border-gray-200">
                         <SelectItem value="none">Sin agenda</SelectItem>
                         {agendas.map(agenda => (
                           <SelectItem key={agenda.id} value={agenda.id}>

@@ -59,13 +59,32 @@ export function PendingApprovalPage() {
   }
 
   useEffect(() => {
-    loadRequestData()
+    const initializeData = async () => {
+      // Primero refrescar los datos del usuario para asegurar que tenemos la info más actualizada
+      console.log('🔄 PendingApprovalPage: Refreshing user data...')
+      await refreshUserData()
+      // Luego cargar los datos de la solicitud
+      await loadRequestData()
+    }
+
+    if (user?.uid) {
+      initializeData()
+    }
   }, [user?.uid])
 
   // Si el usuario ya está aprobado, redirigir al dashboard
   useEffect(() => {
+    console.log('📊 PendingApprovalPage: Checking userData status', {
+      userData,
+      assistantStatus: userData?.assistantStatus,
+      role: userData?.role
+    })
+
     if (userData?.assistantStatus === 'approved') {
+      console.log('✅ Assistant is approved, redirecting to dashboard...')
       navigate('/assistant/dashboard')
+    } else {
+      console.log('⚠️ Assistant not approved yet:', userData?.assistantStatus)
     }
   }, [userData?.assistantStatus, navigate])
 
@@ -141,14 +160,14 @@ export function PendingApprovalPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Estado de tu Solicitud</CardTitle>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={handleRefreshStatus}
                 disabled={isRefreshing}
                 className="flex items-center gap-2"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Actualizar
+                Verificar Estado
               </Button>
             </div>
           </CardHeader>
