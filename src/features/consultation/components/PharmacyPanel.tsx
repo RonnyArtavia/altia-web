@@ -353,6 +353,9 @@ export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGenera
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
+      {/* ── Hero Title ── */}
+      <h2 className="text-[36px] font-black text-teal-500 leading-none tracking-tight">Farmacia</h2>
+
       {/* ═══════════════════════════════════════════════════════
           SECTION 1: RECETA ACTUAL
          ═══════════════════════════════════════════════════════ */}

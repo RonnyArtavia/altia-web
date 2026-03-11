@@ -269,6 +269,9 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
+      {/* ── Hero Title ── */}
+      <h2 className="text-[36px] font-black text-emerald-500 leading-none tracking-tight">Órdenes Médicas</h2>
+
       {/* ── Category Tabs ── */}
       <div className="flex items-center gap-2 bg-white rounded-2xl border border-slate-200 p-2 shadow-sm">
         {(Object.entries(CATEGORY_CONFIG) as [OrderCategory, typeof config][]).map(([key, cfg]) => {

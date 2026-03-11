@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, UserPlus, Users, ChevronRight, Phone, Mail, MoreHorizontal, Eye, Edit, Stethoscope } from 'lucide-react'
+import { Search, UserPlus, Users, ChevronRight, Phone, Mail, MoreHorizontal, Eye, Edit, Stethoscope, AlertTriangle, Pill, Activity } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -285,6 +285,32 @@ export default function PatientsPage() {
                             {patient.address}
                           </div>
                         )}
+                        {/* Clinical micro-summary */}
+                        {(patient.medicalConditions?.length || patient.medications?.length || patient.allergies?.length) ? (
+                          <div className="mt-1.5 flex flex-wrap gap-1 max-w-[320px]">
+                            {patient.medicalConditions?.slice(0, 2).map((dx, i) => (
+                              <span key={`dx-${i}`} className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-100">
+                                <Activity className="h-2.5 w-2.5" />
+                                {dx.length > 20 ? dx.slice(0, 20) + '…' : dx}
+                              </span>
+                            ))}
+                            {patient.medications?.slice(0, 2).map((med, i) => (
+                              <span key={`med-${i}`} className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
+                                <Pill className="h-2.5 w-2.5" />
+                                {med.length > 18 ? med.slice(0, 18) + '…' : med}
+                              </span>
+                            ))}
+                            {patient.allergies?.slice(0, 2).map((allergy, i) => (
+                              <span key={`al-${i}`} className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100">
+                                <AlertTriangle className="h-2.5 w-2.5" />
+                                {allergy.length > 18 ? allergy.slice(0, 18) + '…' : allergy}
+                              </span>
+                            ))}
+                            {((patient.medicalConditions?.length || 0) > 2 || (patient.medications?.length || 0) > 2 || (patient.allergies?.length || 0) > 2) && (
+                              <span className="text-[10px] text-slate-400 font-medium px-1">…</span>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </TableCell>

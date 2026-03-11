@@ -152,6 +152,9 @@ export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF, onOutput
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
+      {/* ── Hero Title ── */}
+      <h2 className="text-[36px] font-black text-purple-500 leading-none tracking-tight">Referencias</h2>
+
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">

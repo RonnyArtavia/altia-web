@@ -122,6 +122,9 @@ export function PreviousConsultationsPanel({ encounters }: PreviousConsultations
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
+      {/* ── Hero Title ── */}
+      <h2 className="text-[36px] font-black text-slate-500 leading-none tracking-tight">Historial</h2>
+
       {/* ── Header with search ── */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">

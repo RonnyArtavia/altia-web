@@ -490,6 +490,9 @@ export function ClinicalSnapshot({
         padding: "0 20px 40px",
       }}>
 
+        {/* ── Hero Title ── */}
+        <h2 className="text-[36px] font-black text-rose-400 leading-none tracking-tight mb-6" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>Consulta Activa</h2>
+
         {/* Alerts */}
         {data.alerts && Array.isArray(data.alerts) && data.alerts.length > 0 && (
           <div style={{ margin: "0 0 20px", padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "4px" }}>

@@ -24,6 +24,7 @@ import {
   Clock,
   ExternalLink,
   CheckCircle2,
+  Microscope,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IPSDisplayData, VitalSignsData, PatientRecordDisplay } from '../types/medical-notes';
@@ -175,7 +176,30 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord, onOrder
       lines.push('Sin medicamentos activos.');
     }
 
-    // Line 5: Last encounter
+    // Line 5: Lab results
+    const completedResults = (ipsData.labResults || []).filter(r => r.value);
+    if (completedResults.length > 0) {
+      const summaries = completedResults.slice(0, 4).map(r => {
+        const val = `${r.name}: ${r.value}${r.unit ? ` ${r.unit}` : ''}`;
+        const flagIcon = r.flag === 'high' || r.flag === 'critical' ? ' ↑' : r.flag === 'low' ? ' ↓' : '';
+        return `${val}${flagIcon}`;
+      }).join(', ');
+      lines.push(`Resultados recientes: ${summaries}${completedResults.length > 4 ? ` (+${completedResults.length - 4})` : ''}.`);
+    } else {
+      lines.push('Sin resultados de laboratorio recientes.');
+    }
+
+    // Line 6: Pending orders
+    const pendingOrders = (ipsData.labOrders || []).filter(o => {
+      const s = (o.status || '').toLowerCase();
+      return s.includes('pendi') || s.includes('activ') || (!s.includes('complet') && !s.includes('cancel'));
+    });
+    if (pendingOrders.length > 0) {
+      const names = pendingOrders.slice(0, 3).map(o => o.name).join(', ');
+      lines.push(`Órdenes pendientes: ${names}${pendingOrders.length > 3 ? ` (+${pendingOrders.length - 3} más)` : ''}.`);
+    }
+
+    // Line 7: Last encounter
     if (ipsData.encounters.length > 0) {
       const last = ipsData.encounters[0];
       const summary = (last.summary || 'Sin resumen').slice(0, 100);
@@ -202,6 +226,9 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord, onOrder
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+
+      {/* ── Hero Title ── */}
+      <h2 className="text-[36px] font-black text-indigo-500 leading-none tracking-tight">Resumen Clínico</h2>
 
       {/* ── IPS Narrative Summary ── */}
       <div className="bg-gradient-to-br from-indigo-50 via-white to-blue-50 rounded-2xl border border-indigo-100 p-5 shadow-sm">
@@ -404,6 +431,58 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord, onOrder
           </div>
         </div>
       </div>
+
+      {/* ── Resultados de Laboratorio y Gabinete ── */}
+      {(() => {
+        const results = (ipsData.labResults || []).filter(r => r.value);
+        if (results.length === 0) return null;
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+              <div className="p-1.5 bg-cyan-100 rounded-lg">
+                <Microscope className="h-4 w-4 text-cyan-600" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">Resultados de Laboratorio</h3>
+              <span className="text-[10px] font-semibold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">
+                {results.length} resultado(s)
+              </span>
+            </div>
+            <div className="px-5 py-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {results.map((r, i) => {
+                  const flagColor =
+                    r.flag === 'high' || r.flag === 'critical' ? 'border-red-200 bg-red-50' :
+                    r.flag === 'low' ? 'border-blue-200 bg-blue-50' :
+                    r.flag === 'abnormal' ? 'border-amber-200 bg-amber-50' :
+                    'border-emerald-200 bg-emerald-50';
+                  const flagText =
+                    r.flag === 'high' ? 'text-red-700' :
+                    r.flag === 'critical' ? 'text-red-700' :
+                    r.flag === 'low' ? 'text-blue-700' :
+                    r.flag === 'abnormal' ? 'text-amber-700' :
+                    'text-emerald-700';
+                  const flagIcon =
+                    r.flag === 'high' || r.flag === 'critical' ? '↑' :
+                    r.flag === 'low' ? '↓' :
+                    r.flag === 'abnormal' ? '⚠' : '✓';
+                  return (
+                    <div key={i} className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl border', flagColor)}>
+                      <span className={cn('text-lg font-bold', flagText)}>{flagIcon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-700 truncate">{r.name}</p>
+                        <p className={cn('text-sm font-bold', flagText)}>
+                          {r.value}{r.unit ? ` ${r.unit}` : ''}
+                        </p>
+                      </div>
+                      {r.date && <span className="text-[10px] text-slate-400 flex-shrink-0">{r.date}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Órdenes Recientes ── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
