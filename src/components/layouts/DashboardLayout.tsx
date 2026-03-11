@@ -38,7 +38,7 @@ interface NavItem {
 function getNavigationItems(userRole: 'doctor' | 'secretary' = 'doctor'): NavItem[] {
   const basePrefix = userRole === 'doctor' ? '/doctor' : '/assistant'
   return [
-    { href: `${basePrefix}/dashboard`, label: 'Dashboard', icon: Home },
+    { href: `${basePrefix}/dashboard`, label: 'Panel de Control', icon: Home },
     { href: `${basePrefix}/today-patients`, label: 'Pacientes de hoy', icon: Stethoscope },
     { href: `${basePrefix}/patients`, label: 'Pacientes', icon: Users },
     { href: `${basePrefix}/agenda`, label: 'Agenda', icon: Calendar },

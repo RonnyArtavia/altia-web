@@ -38,7 +38,8 @@ const TRANSITIONS: Record<string, Record<string, string[]>> = {
     waiting: ['scheduled', 'cancelled'],
   },
   doctor: {
-    waiting: ['in-progress'],
+    scheduled: ['waiting', 'cancelled'],
+    waiting: ['in-progress', 'scheduled', 'cancelled'],
     'in-progress': ['completed'],
   },
 }
