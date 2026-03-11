@@ -24,6 +24,7 @@ import { SecretaryManagementPage } from '@/features/doctor/pages/SecretaryManage
 import { PendingApprovalPage } from '@/features/assistant/pages/PendingApprovalPage'
 import MedicalNotesCopilotPage from '@/features/consultation/pages/MedicalNotesCopilotPage'
 import TodayPatientsPage from '@/features/schedule/pages/TodayPatientsPage'
+import InteroperabilityPage from '@/features/consultation/pages/InteroperabilityPage'
 import { VerifyDocumentPage } from '@/features/verify/pages/VerifyDocumentPage'
 import { AppointmentActionPage } from '@/features/appointments/pages/AppointmentActionPage'
 
@@ -89,6 +90,7 @@ function App() {
                 <Route path="agenda" element={<AgendaPage />} />
                 <Route path="today-patients" element={<TodayPatientsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="interoperability" element={<InteroperabilityPage />} />
                 <Route path="profile-edit" element={<ProfileEditPage />} />
                 <Route path="secretary-management" element={<SecretaryManagementPage />} />
                 <Route path="*" element={<Navigate to="/doctor/dashboard" replace />} />
@@ -111,6 +113,7 @@ function App() {
                 <Route path="agenda" element={<AgendaPage />} />
                 <Route path="today-patients" element={<TodayPatientsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="interoperability" element={<InteroperabilityPage />} />
                 <Route path="*" element={<Navigate to="/assistant/dashboard" replace />} />
               </Routes>
             </DashboardLayout>

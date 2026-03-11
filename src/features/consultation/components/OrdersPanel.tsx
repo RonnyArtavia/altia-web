@@ -1,7 +1,8 @@
 /**
  * OrdersPanel - Tab 4: Órdenes Médicas
  * Tipos: Laboratorio, Imágenes Médicas, Pruebas de Gabinete
- * Permite consultar órdenes existentes y crear nuevas
+ * Permite consultar órdenes existentes, crear nuevas y agregar resultados
+ * Los resultados una vez guardados son inmutables
  */
 
 import React, { useState } from 'react';
@@ -19,6 +20,13 @@ import {
   ChevronRight,
   Printer,
   Inbox,
+  Edit3,
+  Lock,
+  Save,
+  TrendingUp,
+  TrendingDown,
+  AlertOctagon,
+  Minus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IPSDisplayData, PatientRecordDisplay } from '../types/medical-notes';
@@ -29,6 +37,17 @@ interface OrdersPanelProps {
   patientRecord?: PatientRecordDisplay;
   onGeneratePDF?: (type: 'labOrder') => void;
   onOutput?: (channel: OutputChannel, context: string) => void;
+}
+
+/** Saved result for an order — immutable once saved */
+interface OrderResult {
+  value: string;
+  unit: string;
+  referenceRange: string;
+  flag: 'normal' | 'high' | 'low' | 'critical';
+  notes: string;
+  savedAt: string; // ISO timestamp — once set, result is locked
+  savedBy: string;
 }
 
 type OrderCategory = 'lab' | 'imaging' | 'cabinet';
@@ -159,6 +178,17 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
   const [localOrders, setLocalOrders] = useState<NewOrder[]>([]);
   const [expandedExisting, setExpandedExisting] = useState<string | null>(null);
 
+  // ── Results editing state ──
+  const [editingResultKey, setEditingResultKey] = useState<string | null>(null);
+  const [savedResults, setSavedResults] = useState<Record<string, OrderResult>>({});
+  const [resultForm, setResultForm] = useState<Omit<OrderResult, 'savedAt' | 'savedBy'>>({
+    value: '',
+    unit: '',
+    referenceRange: '',
+    flag: 'normal',
+    notes: '',
+  });
+
   // Form state
   const [formTestName, setFormTestName] = useState('');
   const [formCustomTest, setFormCustomTest] = useState('');
@@ -198,6 +228,40 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
     setFormIndication('');
     setFormNotes('');
     setShowNewForm(false);
+  };
+
+  // ── Result saving (immutable once saved) ──
+  const handleSaveResult = (orderKey: string) => {
+    if (!resultForm.value.trim()) return;
+    setSavedResults(prev => ({
+      ...prev,
+      [orderKey]: {
+        ...resultForm,
+        savedAt: new Date().toISOString(),
+        savedBy: 'Dr. Actual', // In production, from auth context
+      }
+    }));
+    setEditingResultKey(null);
+    setResultForm({ value: '', unit: '', referenceRange: '', flag: 'normal', notes: '' });
+  };
+
+  const handleStartEditResult = (orderKey: string) => {
+    // Only allow editing if no saved result exists (immutable)
+    if (savedResults[orderKey]) return;
+    setEditingResultKey(orderKey);
+    setResultForm({ value: '', unit: '', referenceRange: '', flag: 'normal', notes: '' });
+  };
+
+  const handleCancelEditResult = () => {
+    setEditingResultKey(null);
+    setResultForm({ value: '', unit: '', referenceRange: '', flag: 'normal', notes: '' });
+  };
+
+  const FLAG_CONFIG: Record<string, { label: string; icon: typeof TrendingUp; color: string; bg: string }> = {
+    normal: { label: 'Normal', icon: Minus, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
+    high: { label: 'Alto', icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
+    low: { label: 'Bajo', icon: TrendingDown, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
+    critical: { label: 'Crítico', icon: AlertOctagon, color: 'text-red-600', bg: 'bg-red-50 border-red-200' },
   };
 
   const localOrdersForCategory = localOrders.filter(o => o.category === activeCategory);
@@ -416,6 +480,10 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
 
         {existingOrders.map((order, i) => {
           const isExpanded = expandedExisting === `existing-${i}`;
+          const orderKey = `existing-${i}`;
+          const saved = savedResults[orderKey];
+          const isEditingThis = editingResultKey === orderKey;
+
           return (
             <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <button
@@ -427,7 +495,15 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
                   <p className="text-sm font-semibold text-slate-800">{order.name || 'Orden sin nombre'}</p>
                   {order.date && <span className="text-xs text-slate-400">{order.date}</span>}
                 </div>
-                {order.status && (
+                {saved && (
+                  <div className="flex items-center gap-1">
+                    <Lock className="h-3 w-3 text-slate-400" />
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                      Resultado guardado
+                    </span>
+                  </div>
+                )}
+                {order.status && !saved && (
                   <span className={cn(
                     'text-[10px] font-semibold px-2 py-0.5 rounded-full',
                     (order.status || '').toLowerCase().includes('pendi') ? 'bg-amber-50 text-amber-700' :
@@ -441,10 +517,167 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
               </button>
 
               {isExpanded && (
-                <div className="px-4 pb-3 border-t border-slate-100 bg-slate-50/30 text-sm text-slate-600 space-y-1 pt-2">
-                  {order.doctor && <p><span className="font-medium">Solicitado por:</span> {order.doctor}</p>}
-                  {order.priority && <p><span className="font-medium">Prioridad:</span> {order.priority}</p>}
-                  {order.notes && <p><span className="font-medium">Notas:</span> {order.notes}</p>}
+                <div className="px-4 pb-4 border-t border-slate-100 bg-slate-50/30 space-y-3 pt-3">
+                  {/* Order details */}
+                  <div className="text-sm text-slate-600 space-y-1">
+                    {order.doctor && <p><span className="font-medium">Solicitado por:</span> {order.doctor}</p>}
+                    {order.priority && <p><span className="font-medium">Prioridad:</span> {order.priority}</p>}
+                    {order.notes && <p><span className="font-medium">Notas:</span> {order.notes}</p>}
+                  </div>
+
+                  {/* ── Saved Result (Immutable) ── */}
+                  {saved && (
+                    <div className="bg-white rounded-xl border-2 border-emerald-200 p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Lock className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Resultado — Inmutable</span>
+                        <span className="text-[10px] text-slate-400 ml-auto">
+                          {new Date(saved.savedAt).toLocaleString('es-CR')} • {saved.savedBy}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase">Valor</span>
+                          <p className="text-lg font-bold text-slate-800">{saved.value} <span className="text-xs font-normal text-slate-500">{saved.unit}</span></p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase">Rango referencia</span>
+                          <p className="text-sm font-medium text-slate-700">{saved.referenceRange || '—'}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase">Indicador</span>
+                          <div className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold mt-0.5', FLAG_CONFIG[saved.flag]?.bg || 'bg-slate-50 border-slate-200')}>
+                            {(() => {
+                              const FlagIcon = FLAG_CONFIG[saved.flag]?.icon || Minus;
+                              return <FlagIcon className={cn('h-3 w-3', FLAG_CONFIG[saved.flag]?.color)} />;
+                            })()}
+                            <span className={FLAG_CONFIG[saved.flag]?.color}>{FLAG_CONFIG[saved.flag]?.label || saved.flag}</span>
+                          </div>
+                        </div>
+                        {saved.notes && (
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase">Notas</span>
+                            <p className="text-sm text-slate-600">{saved.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Edit Result Form ── */}
+                  {isEditingThis && !saved && (
+                    <div className="bg-white rounded-xl border-2 border-indigo-200 p-4 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Edit3 className="h-4 w-4 text-indigo-600" />
+                        <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Agregar Resultado</span>
+                        <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full ml-auto font-semibold">
+                          ⚠ Una vez guardado será inmutable
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Value */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1 uppercase">Valor *</label>
+                          <input
+                            type="text"
+                            placeholder="Ej: 95, 6.5, Positivo, Normal..."
+                            value={resultForm.value}
+                            onChange={e => setResultForm(f => ({ ...f, value: e.target.value }))}
+                            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300"
+                          />
+                        </div>
+                        {/* Unit */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1 uppercase">Unidad</label>
+                          <input
+                            type="text"
+                            placeholder="Ej: mg/dL, %, mmHg..."
+                            value={resultForm.unit}
+                            onChange={e => setResultForm(f => ({ ...f, unit: e.target.value }))}
+                            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300"
+                          />
+                        </div>
+                        {/* Reference Range */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1 uppercase">Rango de referencia</label>
+                          <input
+                            type="text"
+                            placeholder="Ej: 70-100, < 6.5%, Negativo..."
+                            value={resultForm.referenceRange}
+                            onChange={e => setResultForm(f => ({ ...f, referenceRange: e.target.value }))}
+                            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300"
+                          />
+                        </div>
+                        {/* Flag */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1 uppercase">Indicador</label>
+                          <div className="grid grid-cols-4 gap-1">
+                            {(['normal', 'high', 'low', 'critical'] as const).map(flag => {
+                              const cfg = FLAG_CONFIG[flag];
+                              const FlagIcon = cfg.icon;
+                              return (
+                                <button
+                                  key={flag}
+                                  onClick={() => setResultForm(f => ({ ...f, flag }))}
+                                  className={cn(
+                                    'flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg border text-[10px] font-semibold transition-all',
+                                    resultForm.flag === flag
+                                      ? `${cfg.bg} ${cfg.color} ring-2 ring-offset-1 ring-current`
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
+                                  )}
+                                >
+                                  <FlagIcon className="h-3.5 w-3.5" />
+                                  {cfg.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="mt-3">
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1 uppercase">Observaciones</label>
+                        <textarea
+                          placeholder="Notas adicionales sobre el resultado..."
+                          value={resultForm.notes}
+                          onChange={e => setResultForm(f => ({ ...f, notes: e.target.value }))}
+                          rows={2}
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 resize-none"
+                        />
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 mt-4">
+                        <button
+                          onClick={handleCancelEditResult}
+                          className="flex-1 px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleSaveResult(orderKey)}
+                          disabled={!resultForm.value.trim()}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-40 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-200"
+                        >
+                          <Save className="h-3.5 w-3.5" />
+                          Guardar Resultado
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Add Result Button (only if no saved result and not editing) ── */}
+                  {!saved && !isEditingThis && (
+                    <button
+                      onClick={() => handleStartEditResult(orderKey)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors w-full justify-center border border-indigo-200 hover:shadow-sm"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      Agregar Resultado
+                    </button>
+                  )}
                 </div>
               )}
             </div>

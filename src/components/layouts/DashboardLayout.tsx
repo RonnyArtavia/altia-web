@@ -22,6 +22,7 @@ import {
   User,
   Bell,
   Stethoscope,
+  Share2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -42,6 +43,7 @@ function getNavigationItems(userRole: 'doctor' | 'secretary' = 'doctor'): NavIte
     { href: `${basePrefix}/today-patients`, label: 'Pacientes de hoy', icon: Stethoscope },
     { href: `${basePrefix}/patients`, label: 'Pacientes', icon: Users },
     { href: `${basePrefix}/agenda`, label: 'Agenda', icon: Calendar },
+    { href: `${basePrefix}/interoperability`, label: 'Interoperabilidad', icon: Share2 },
     { href: `${basePrefix}/settings`, label: 'Configuración', icon: Settings },
   ]
 }

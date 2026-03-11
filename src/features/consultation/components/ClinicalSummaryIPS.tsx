@@ -20,6 +20,10 @@ import {
   Scale,
   Ruler,
   TrendingUp,
+  FlaskConical,
+  Clock,
+  ExternalLink,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IPSDisplayData, VitalSignsData, PatientRecordDisplay } from '../types/medical-notes';
@@ -28,6 +32,8 @@ interface ClinicalSummaryIPSProps {
   ipsData: IPSDisplayData;
   vitalSigns?: VitalSignsData | null;
   patientRecord?: PatientRecordDisplay;
+  onOrderClick?: (orderId: string) => void;
+  onNavigateToOrders?: () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -126,7 +132,7 @@ function ToggleTabs({ tabs, activeTab, onTabChange }: {
 
 // ─── Main Component ───────────────────────────────────────────
 
-export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord }: ClinicalSummaryIPSProps) {
+export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord, onOrderClick, onNavigateToOrders }: ClinicalSummaryIPSProps) {
   const [medTab, setMedTab] = useState<'all' | 'active' | 'finished'>('all');
   const [dxTab, setDxTab] = useState<'all' | 'active' | 'inactive'>('all');
   const [expandedAllergies, setExpandedAllergies] = useState(true);
@@ -396,6 +402,116 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord }: Clini
               })
             )}
           </div>
+        </div>
+      </div>
+
+      {/* ── Órdenes Recientes ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-amber-100 rounded-lg">
+              <FlaskConical className="h-4 w-4 text-amber-600" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800">Órdenes Recientes</h3>
+            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+              {(ipsData.labOrders || []).length + (ipsData.labResults || []).length}
+            </span>
+          </div>
+          {onNavigateToOrders && (
+            <button
+              onClick={onNavigateToOrders}
+              className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+            >
+              Ver todas <ExternalLink className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        <div className="px-5 py-3 space-y-2">
+          {(() => {
+            const allOrders = [
+              ...(ipsData.labOrders || []).map(o => ({
+                id: o.name || 'orden',
+                name: o.name || 'Orden sin nombre',
+                date: o.date,
+                status: o.status,
+                type: 'order' as const,
+                result: undefined as string | undefined,
+                flag: undefined as string | undefined,
+              })),
+              ...(ipsData.labResults || []).map(r => ({
+                id: r.name || 'resultado',
+                name: r.name || 'Resultado sin nombre',
+                date: r.date,
+                status: 'Completada',
+                type: 'result' as const,
+                result: r.value ? `${r.value}${r.unit ? ` ${r.unit}` : ''}` : undefined,
+                flag: r.flag,
+              })),
+            ].slice(0, 6);
+
+            if (allOrders.length === 0) {
+              return (
+                <div className="py-4 text-center">
+                  <FlaskConical className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">Sin órdenes recientes</p>
+                </div>
+              );
+            }
+
+            return allOrders.map((item, i) => {
+              const isComplete = (item.status || '').toLowerCase().includes('complet');
+              const isPending = (item.status || '').toLowerCase().includes('pendi');
+              return (
+                <button
+                  key={i}
+                  onClick={() => onOrderClick?.(item.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors text-left group"
+                >
+                  {isComplete ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                  ) : isPending ? (
+                    <Clock className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                  ) : (
+                    <FlaskConical className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 group-hover:text-indigo-700 transition-colors">{item.name}</p>
+                    {item.result && (
+                      <p className={cn(
+                        'text-xs font-semibold mt-0.5',
+                        item.flag === 'high' || item.flag === 'critical' ? 'text-red-600' :
+                        item.flag === 'low' ? 'text-blue-600' :
+                        item.flag === 'abnormal' ? 'text-amber-600' :
+                        'text-emerald-600'
+                      )}>
+                        Resultado: {item.result}
+                        {item.flag && item.flag !== 'normal' && (
+                          <span className="ml-1">
+                            {item.flag === 'high' ? '↑' : item.flag === 'low' ? '↓' : '⚠'}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {item.status && (
+                      <span className={cn(
+                        'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                        isComplete ? 'bg-emerald-50 text-emerald-700' :
+                        isPending ? 'bg-amber-50 text-amber-700' :
+                        'bg-slate-100 text-slate-500'
+                      )}>
+                        {item.status}
+                      </span>
+                    )}
+                    {item.date && <span className="text-[10px] text-slate-400">{item.date}</span>}
+                  </div>
+                  <ExternalLink className="h-3 w-3 text-slate-300 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
+                </button>
+              );
+            });
+          })()}
         </div>
       </div>
     </div>

@@ -38,6 +38,60 @@ import { ReferralsPanel } from './ReferralsPanel';
 import { PharmacyPanel } from './PharmacyPanel';
 import { MedicalHistoryPanel } from './MedicalHistoryPanel';
 import { cn } from '@/lib/utils';
+import { handleOutput, type OutputContext, type OutputChannel } from '@/services/outputService';
+import type { ContentLine } from '@/services/outputService';
+
+/** Build structured content lines from IPS data for output */
+function buildContentForContext(
+  context: string,
+  ipsData: IPSDisplayData,
+  clinicalState: ClinicalState
+): ContentLine[] {
+  const lines: ContentLine[] = [];
+  switch (context) {
+    case 'orders':
+      lines.push({ type: 'header', value: 'Órdenes Médicas' });
+      (ipsData.labOrders || []).forEach(o => {
+        lines.push({ type: 'list-item', value: `${o.name || 'Orden'} — ${o.status || 'Pendiente'} (${o.date || ''})` });
+        if (o.notes) lines.push({ type: 'text', value: `  Notas: ${o.notes}` });
+      });
+      if ((ipsData.labResults || []).length > 0) {
+        lines.push({ type: 'separator' });
+        lines.push({ type: 'header', value: 'Resultados' });
+        (ipsData.labResults || []).forEach(r => {
+          lines.push({ type: 'field', label: r.name || 'Resultado', value: `${r.value || '—'} ${r.unit || ''} ${r.flag ? `(${r.flag})` : ''}` });
+        });
+      }
+      break;
+    case 'referrals':
+      lines.push({ type: 'header', value: 'Referencias Médicas' });
+      lines.push({ type: 'text', value: 'Información de referencias del paciente.' });
+      break;
+    case 'pharmacy':
+      lines.push({ type: 'header', value: 'Receta Médica' });
+      (ipsData.medications || []).forEach((m, i) => {
+        lines.push({ type: 'list-item', value: `${i + 1}. ${m.name || 'Medicamento'} — ${m.dose || ''} ${m.frequency || ''}` });
+        if (m.notes) lines.push({ type: 'text', value: `   ${m.notes}` });
+      });
+      break;
+    default:
+      lines.push({ type: 'header', value: 'Resumen Clínico' });
+      if (ipsData.conditions.length > 0) {
+        lines.push({ type: 'subheader', value: 'Diagnósticos' });
+        ipsData.conditions.forEach(c => lines.push({ type: 'list-item', value: `${c.name} — ${c.status || ''}` }));
+      }
+      if (ipsData.allergies.length > 0) {
+        lines.push({ type: 'subheader', value: 'Alergias' });
+        ipsData.allergies.forEach(a => lines.push({ type: 'list-item', value: `${a.name} (${a.severity || ''})` }));
+      }
+      if (ipsData.medications.length > 0) {
+        lines.push({ type: 'subheader', value: 'Medicamentos' });
+        ipsData.medications.forEach(m => lines.push({ type: 'list-item', value: `${m.name} — ${m.dose || ''}` }));
+      }
+      break;
+  }
+  return lines;
+}
 
 interface MainContentPanelProps {
   activeTab: string;
@@ -269,7 +323,7 @@ function PatientHeader({
   };
 
   return (
-    <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-30">
+    <div className="bg-white border-b border-slate-200 px-6 py-5 sticky top-0 z-30">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {onBack && (
@@ -278,13 +332,13 @@ function PatientHeader({
             </button>
           )}
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-0.5">Perfil Clínico</p>
+            <h1 className="text-xl font-bold text-slate-900">
               {patient?.name || 'Paciente'}
+              {patient?.age && <span className="text-slate-400 font-normal text-lg ml-2">{patient.age} años</span>}
             </h1>
             {patient && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
-                <span>{patient.age} años</span>
-                <span>•</span>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500 mt-0.5">
                 <span>{patient.gender}</span>
                 {patient.phone && (
                   <>
@@ -344,6 +398,23 @@ export function MainContentPanel({
 }: MainContentPanelProps) {
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // ── Output handler for PDF, Email, WhatsApp, Screen ──
+  const handleOutputChannel = React.useCallback((channel: OutputChannel, context: string) => {
+    const ctx: OutputContext = {
+      documentType: context as OutputContext['documentType'],
+      patientName: patientRecord?.name || 'Paciente',
+      patientPhone: patientRecord?.phone,
+      patientEmail: patientRecord?.email,
+      doctorName: 'Dr. Actual',
+      clinicName: 'Altia Health',
+      title: context === 'orders' ? 'Órdenes Médicas' :
+             context === 'referrals' ? 'Referencia Médica' :
+             context === 'pharmacy' ? 'Receta Médica' : 'Resumen Clínico',
+      content: buildContentForContext(context, ipsData, clinicalState),
+    };
+    handleOutput(channel, ctx);
+  }, [patientRecord, ipsData, clinicalState]);
 
   // Auto-scroll to top when consultation starts
   React.useEffect(() => {
@@ -423,6 +494,7 @@ export function MainContentPanel({
               ipsData={ipsData}
               vitalSigns={vitalSigns}
               patientRecord={patientRecord}
+              onNavigateToOrders={() => setActiveTab('ordenes')}
             />
           )}
 
@@ -465,6 +537,7 @@ export function MainContentPanel({
               ipsData={ipsData}
               patientRecord={patientRecord}
               onGeneratePDF={onGeneratePDF}
+              onOutput={handleOutputChannel}
             />
           )}
 
@@ -474,6 +547,7 @@ export function MainContentPanel({
               ipsData={ipsData}
               patientRecord={patientRecord}
               onGeneratePDF={onGeneratePDF}
+              onOutput={handleOutputChannel}
             />
           )}
 
@@ -483,6 +557,7 @@ export function MainContentPanel({
               ipsData={ipsData}
               patientRecord={patientRecord}
               onGeneratePDF={onGeneratePDF}
+              onOutput={handleOutputChannel}
             />
           )}
 
