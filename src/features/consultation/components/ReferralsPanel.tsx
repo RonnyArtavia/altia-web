@@ -21,11 +21,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IPSDisplayData, PatientRecordDisplay } from '../types/medical-notes';
+import { OutputFooter, type OutputChannel } from './OutputFooter';
 
 interface ReferralsPanelProps {
   ipsData: IPSDisplayData;
   patientRecord?: PatientRecordDisplay;
   onGeneratePDF?: (type: 'referral') => void;
+  onOutput?: (channel: OutputChannel, context: string) => void;
 }
 
 interface Referral {
@@ -106,7 +108,7 @@ function generateClinicalSummary(ipsData: IPSDisplayData, patientRecord?: Patien
 
 // ── Main Component ──────────────────────────────────────────
 
-export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF }: ReferralsPanelProps) {
+export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF, onOutput }: ReferralsPanelProps) {
   const [showNewForm, setShowNewForm] = useState(false);
   const [localReferrals, setLocalReferrals] = useState<Referral[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -414,6 +416,16 @@ export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF }: Referr
           </div>
         );
       })}
+
+      {/* ── Output Footer ── */}
+      <OutputFooter
+        onOutput={(channel) => {
+          if (onOutput) onOutput(channel, 'referrals');
+          if (channel === 'print' && onGeneratePDF) onGeneratePDF('referral');
+        }}
+        label="Opciones de salida — Referencias"
+        accentColor="purple"
+      />
     </div>
   );
 }

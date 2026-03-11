@@ -22,6 +22,7 @@ import {
   ClipboardList,
   ArrowUpRight,
   BookOpen,
+  Pill,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -118,6 +119,7 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     { id: 'consultas-anteriores', title: 'Consultas Anteriores', icon: <History size={16} /> },
     { id: 'ordenes', title: 'Órdenes', icon: <ClipboardList size={16} /> },
     { id: 'referencias', title: 'Referencias', icon: <ArrowUpRight size={16} /> },
+    { id: 'farmacia', title: 'Farmacia', icon: <Pill size={16} /> },
     { id: 'antecedentes', title: 'Antecedentes', icon: <BookOpen size={16} /> },
   ]);
 

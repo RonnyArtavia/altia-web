@@ -22,11 +22,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IPSDisplayData, PatientRecordDisplay } from '../types/medical-notes';
+import { OutputFooter, type OutputChannel } from './OutputFooter';
 
 interface OrdersPanelProps {
   ipsData: IPSDisplayData;
   patientRecord?: PatientRecordDisplay;
   onGeneratePDF?: (type: 'labOrder') => void;
+  onOutput?: (channel: OutputChannel, context: string) => void;
 }
 
 type OrderCategory = 'lab' | 'imaging' | 'cabinet';
@@ -151,7 +153,7 @@ function statusIcon(status?: string) {
 
 // ── Main Component ──────────────────────────────────────────
 
-export function OrdersPanel({ ipsData, onGeneratePDF }: OrdersPanelProps) {
+export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelProps) {
   const [activeCategory, setActiveCategory] = useState<OrderCategory>('lab');
   const [showNewForm, setShowNewForm] = useState(false);
   const [localOrders, setLocalOrders] = useState<NewOrder[]>([]);
@@ -449,6 +451,16 @@ export function OrdersPanel({ ipsData, onGeneratePDF }: OrdersPanelProps) {
           );
         })}
       </div>
+
+      {/* ── Output Footer ── */}
+      <OutputFooter
+        onOutput={(channel) => {
+          if (onOutput) onOutput(channel, 'orders');
+          if (channel === 'print' && onGeneratePDF) onGeneratePDF('labOrder');
+        }}
+        label="Opciones de salida — Órdenes"
+        accentColor="emerald"
+      />
     </div>
   );
 }

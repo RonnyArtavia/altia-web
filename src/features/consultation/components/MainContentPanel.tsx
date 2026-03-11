@@ -35,6 +35,7 @@ import { ClinicalSummaryIPS } from './ClinicalSummaryIPS';
 import { PreviousConsultationsPanel } from './PreviousConsultationsPanel';
 import { OrdersPanel } from './OrdersPanel';
 import { ReferralsPanel } from './ReferralsPanel';
+import { PharmacyPanel } from './PharmacyPanel';
 import { MedicalHistoryPanel } from './MedicalHistoryPanel';
 import { cn } from '@/lib/utils';
 
@@ -476,7 +477,16 @@ export function MainContentPanel({
             />
           )}
 
-          {/* TAB 6: ANTECEDENTES (HISTORIA CLÍNICA) */}
+          {/* TAB 6: FARMACIA */}
+          {activeTab === 'farmacia' && (
+            <PharmacyPanel
+              ipsData={ipsData}
+              patientRecord={patientRecord}
+              onGeneratePDF={onGeneratePDF}
+            />
+          )}
+
+          {/* TAB 7: ANTECEDENTES (HISTORIA CLÍNICA) */}
           {activeTab === 'antecedentes' && (
             <MedicalHistoryPanel
               ipsData={ipsData}
