@@ -127,8 +127,8 @@ function ToggleTabs({ tabs, activeTab, onTabChange }: {
 // ─── Main Component ───────────────────────────────────────────
 
 export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord }: ClinicalSummaryIPSProps) {
-  const [medTab, setMedTab] = useState<'active' | 'finished'>('active');
-  const [dxTab, setDxTab] = useState<'active' | 'inactive'>('active');
+  const [medTab, setMedTab] = useState<'all' | 'active' | 'finished'>('all');
+  const [dxTab, setDxTab] = useState<'all' | 'active' | 'inactive'>('all');
   const [expandedAllergies, setExpandedAllergies] = useState(true);
 
   // ── Generate IPS narrative summary (5 lines) ──
@@ -191,8 +191,8 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord }: Clini
   const activeDx = ipsData.conditions.filter(c => isActiveDx(c.status));
   const inactiveDx = ipsData.conditions.filter(c => !isActiveDx(c.status));
 
-  const displayMeds = medTab === 'active' ? activeMeds : finishedMeds;
-  const displayDx = dxTab === 'active' ? activeDx : inactiveDx;
+  const displayMeds = medTab === 'all' ? ipsData.medications : medTab === 'active' ? activeMeds : finishedMeds;
+  const displayDx = dxTab === 'all' ? ipsData.conditions : dxTab === 'active' ? activeDx : inactiveDx;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -257,7 +257,7 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord }: Clini
                       <span className={cn('w-2 h-2 rounded-full flex-shrink-0', colors.dot)} />
                       <div className="flex-1 min-w-0">
                         <p className={cn('text-sm font-semibold', colors.text)}>{allergy.name}</p>
-                        {allergy.notes && <p className="text-xs text-slate-500 mt-0.5 truncate">{allergy.notes}</p>}
+                        {allergy.notes && <p className="text-xs text-slate-500 mt-0.5">{allergy.notes}</p>}
                       </div>
                       {allergy.severity && (
                         <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', colors.bg, colors.text)}>
@@ -283,47 +283,62 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord }: Clini
             </div>
             <ToggleTabs
               activeTab={medTab}
-              onTabChange={(id) => setMedTab(id as 'active' | 'finished')}
+              onTabChange={(id) => setMedTab(id as 'all' | 'active' | 'finished')}
               tabs={[
+                { id: 'all', label: 'Todos', count: ipsData.medications.length },
                 { id: 'active', label: 'Activos', count: activeMeds.length },
                 { id: 'finished', label: 'Finalizados', count: finishedMeds.length },
               ]}
             />
           </div>
 
-          <div className="px-5 pb-4 space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
+          <div className="px-5 pb-4 space-y-2 overflow-y-auto custom-scrollbar">
             {displayMeds.length === 0 ? (
               <div className="py-4 text-center">
                 <Pill className="h-8 w-8 text-slate-200 mx-auto mb-2" />
                 <p className="text-sm text-slate-400">
-                  {medTab === 'active' ? 'Sin medicamentos activos' : 'Sin medicamentos finalizados'}
+                  {medTab === 'all' ? 'Sin medicamentos registrados' : medTab === 'active' ? 'Sin medicamentos activos' : 'Sin medicamentos finalizados'}
                 </p>
               </div>
             ) : (
-              displayMeds.map((med, i) => (
-                <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <div className={cn(
-                    'mt-0.5 w-2 h-2 rounded-full flex-shrink-0',
-                    medTab === 'active' ? 'bg-emerald-500' : 'bg-slate-400'
-                  )} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">{med.name}</p>
-                    {med.dose && <p className="text-xs text-slate-500">{med.dose}</p>}
-                    {med.frequency && <p className="text-xs text-slate-400">{med.frequency}</p>}
-                    {med.warning && (
-                      <p className={cn(
-                        'text-xs mt-1 px-2 py-0.5 rounded inline-block',
-                        med.warningLevel === 'critical' ? 'bg-red-50 text-red-600' :
-                        med.warningLevel === 'warning' ? 'bg-amber-50 text-amber-600' :
-                        'bg-blue-50 text-blue-600'
-                      )}>
-                        ⚠ {med.warning}
-                      </p>
-                    )}
+              displayMeds.map((med, i) => {
+                const medIsActive = isActiveMed(med.status);
+                return (
+                  <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <div className={cn(
+                      'mt-0.5 w-2 h-2 rounded-full flex-shrink-0',
+                      medIsActive ? 'bg-emerald-500' : 'bg-slate-400'
+                    )} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800">{med.name}</p>
+                      {med.dose && <p className="text-xs text-slate-500">{med.dose}</p>}
+                      {med.frequency && <p className="text-xs text-slate-400">{med.frequency}</p>}
+                      {med.notes && <p className="text-xs text-slate-400 mt-0.5">{med.notes}</p>}
+                      {med.warning && (
+                        <p className={cn(
+                          'text-xs mt-1 px-2 py-0.5 rounded inline-block',
+                          med.warningLevel === 'critical' ? 'bg-red-50 text-red-600' :
+                          med.warningLevel === 'warning' ? 'bg-amber-50 text-amber-600' :
+                          'bg-blue-50 text-blue-600'
+                        )}>
+                          ⚠ {med.warning}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      {medTab === 'all' && (
+                        <span className={cn(
+                          'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                          medIsActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                        )}>
+                          {medIsActive ? 'Activo' : (med.status || 'Finalizado')}
+                        </span>
+                      )}
+                      {med.date && <span className="text-[10px] text-slate-400 whitespace-nowrap">{med.date}</span>}
+                    </div>
                   </div>
-                  {med.date && <span className="text-[10px] text-slate-400 whitespace-nowrap mt-1">{med.date}</span>}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -339,34 +354,36 @@ export function ClinicalSummaryIPS({ ipsData, vitalSigns, patientRecord }: Clini
             </div>
             <ToggleTabs
               activeTab={dxTab}
-              onTabChange={(id) => setDxTab(id as 'active' | 'inactive')}
+              onTabChange={(id) => setDxTab(id as 'all' | 'active' | 'inactive')}
               tabs={[
+                { id: 'all', label: 'Todos', count: ipsData.conditions.length },
                 { id: 'active', label: 'Activos', count: activeDx.length },
                 { id: 'inactive', label: 'Inactivos', count: inactiveDx.length },
               ]}
             />
           </div>
 
-          <div className="px-5 pb-4 space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
+          <div className="px-5 pb-4 space-y-2 overflow-y-auto custom-scrollbar">
             {displayDx.length === 0 ? (
               <div className="py-4 text-center">
                 <Stethoscope className="h-8 w-8 text-slate-200 mx-auto mb-2" />
                 <p className="text-sm text-slate-400">
-                  {dxTab === 'active' ? 'Sin diagnósticos activos' : 'Sin diagnósticos inactivos'}
+                  {dxTab === 'all' ? 'Sin diagnósticos registrados' : dxTab === 'active' ? 'Sin diagnósticos activos' : 'Sin diagnósticos inactivos'}
                 </p>
               </div>
             ) : (
               displayDx.map((dx, i) => {
                 const badge = statusBadge(dx.status);
+                const dxIsActive = isActiveDx(dx.status);
                 return (
                   <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
                     <div className={cn(
                       'mt-0.5 w-2 h-2 rounded-full flex-shrink-0',
-                      dxTab === 'active' ? 'bg-blue-500' : 'bg-slate-400'
+                      dxIsActive ? 'bg-blue-500' : 'bg-slate-400'
                     )} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800">{dx.name}</p>
-                      {dx.notes && <p className="text-xs text-slate-500 mt-0.5 truncate">{dx.notes}</p>}
+                      {dx.notes && <p className="text-xs text-slate-500 mt-0.5">{dx.notes}</p>}
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', badge.bg, badge.text)}>
