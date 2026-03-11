@@ -31,6 +31,9 @@ interface AuthState {
   isDoctor: () => boolean
   isSecretary: () => boolean
   isPatient: () => boolean
+  isAuthorizedSecretary: () => boolean
+  isPendingSecretary: () => boolean
+  canAccessSystemData: () => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -104,16 +107,18 @@ export const useAuthStore = create<AuthState>()(
             organizationId: userData.organizationId || firebaseUser.uid,
             createdAt: new Date(),
             updatedAt: new Date(),
-            // Medical fields
-            specialty: userData.specialty,
-            medicalLicense: userData.medicalLicense,
+            // Medical fields - only set if provided to avoid undefined values
+            ...(userData.specialty && { specialty: userData.specialty }),
+            ...(userData.medicalLicense && { medicalLicense: userData.medicalLicense }),
             // Contact information
-            phoneNumber: userData.phoneNumber,
-            // Patient specific fields
-            cedula: userData.cedula,
-            gender: userData.gender,
-            dateOfBirth: userData.dateOfBirth,
-            address: userData.address,
+            ...(userData.phoneNumber && { phoneNumber: userData.phoneNumber }),
+            // Patient specific fields - only set if provided to avoid undefined values
+            ...(userData.cedula && { cedula: userData.cedula }),
+            ...(userData.gender && { gender: userData.gender }),
+            ...(userData.dateOfBirth && { dateOfBirth: userData.dateOfBirth }),
+            ...(userData.address && { address: userData.address }),
+            // Assistant authorization fields - set as pending if secretary
+            assistantStatus: userData.role === 'secretary' ? 'pending' : undefined,
           }
 
           // Save user data to Firestore
@@ -217,8 +222,13 @@ export const useAuthStore = create<AuthState>()(
                     hasHydrated: true,
                   })
                 }
-              } catch (error) {
-                console.error('Error fetching user data:', error)
+              } catch (error: any) {
+                // Don't log errors for temporary test accounts or permission issues during registration
+                if (error?.code === 'permission-denied' || error?.message?.includes('permissions')) {
+                  console.warn('User data not accessible yet (possibly during registration):', error?.code || error?.message)
+                } else {
+                  console.error('Error fetching user data:', error)
+                }
                 set({
                   user: firebaseUser,
                   userData: null,
@@ -272,6 +282,34 @@ export const useAuthStore = create<AuthState>()(
       isDoctor: () => get().userData?.role === 'doctor',
       isSecretary: () => get().userData?.role === 'secretary',
       isPatient: () => get().userData?.role === 'patient',
+
+      // New assistant/secretary authorization methods
+      isAuthorizedSecretary: () => {
+        const userData = get().userData
+        return userData?.role === 'secretary' && userData?.assistantStatus === 'approved'
+      },
+
+      isPendingSecretary: () => {
+        const userData = get().userData
+        return userData?.role === 'secretary' && userData?.assistantStatus === 'pending'
+      },
+
+      canAccessSystemData: () => {
+        const userData = get().userData
+        console.log('🔍 canAccessSystemData check:', {
+          hasUserData: !!userData,
+          role: userData?.role,
+          assistantStatus: userData?.assistantStatus
+        })
+        if (!userData) return false
+        if (userData.role === 'doctor') return true
+        if (userData.role === 'secretary') {
+          const canAccess = userData.assistantStatus === 'approved'
+          console.log('📋 Secretary access result:', canAccess)
+          return canAccess
+        }
+        return false
+      },
     }),
     {
       name: 'auth-storage',

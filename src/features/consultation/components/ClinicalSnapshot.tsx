@@ -27,6 +27,10 @@ import {
   Activity,
   ClipboardList,
   Tag,
+  Users,
+  FileDown,
+  TestTube,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -290,17 +294,33 @@ function IPSItemRow({
   }
 
   const isPresumptive = item.type === 'condition' && item.verificationStatus === 'presumptive';
+  const isApproved = item.approved !== false;
+  const isApprovable = ['medication', 'labOrder', 'imagingOrder', 'order', 'referral', 'procedure'].includes(item.type);
 
   return (
     <div
       className={`p-3 rounded-lg ${colors.bg} border ${colors.border} text-left hover:shadow-sm transition-all group relative pr-8 ${isSelectionMode ? 'cursor-pointer hover:bg-opacity-80' : ''
-        }`}
+        } ${!isApproved && isApprovable ? 'opacity-50' : ''}`}
       onClick={isSelectionMode ? onToggleSelection : undefined}
     >
       <div className="flex items-start gap-3">
+        {/* Approval toggle for actionable items */}
+        {isApprovable && !readOnly && !isSelectionMode && onUpdate && (
+          <button
+            onClick={() => item.id && onUpdate(item.id, { approved: !isApproved })}
+            className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+              isApproved
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'bg-white border-slate-300 hover:border-slate-400'
+            }`}
+            title={isApproved ? 'Desaprobar — no se incluirá en documentos' : 'Aprobar — se incluirá en documentos'}
+          >
+            {isApproved && <Check size={10} />}
+          </button>
+        )}
         <div className="text-left flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className={`font-semibold text-sm ${colors.text}`}>
+            <p className={`font-semibold text-sm ${colors.text} ${!isApproved && isApprovable ? 'line-through' : ''}`}>
               {item.display || item.text}
             </p>
             {/* Presumptive Badge */}
@@ -373,6 +393,7 @@ interface ClinicalSnapshotProps {
   onRemoveFHIR?: (id: string) => void;
   onUpdateEducation?: (text: string) => void;
   onApproveSuggestion?: (suggestion: CopilotSuggestion) => void;
+  onGeneratePDF?: (type: 'prescription' | 'labOrder' | 'referral') => void;
 }
 
 export function ClinicalSnapshot({
@@ -383,7 +404,8 @@ export function ClinicalSnapshot({
   onUpdateFHIR,
   onRemoveFHIR,
   onUpdateEducation,
-  onApproveSuggestion
+  onApproveSuggestion,
+  onGeneratePDF
 }: ClinicalSnapshotProps) {
   if (!data) return null;
 
@@ -396,6 +418,8 @@ export function ClinicalSnapshot({
     labOrder: 'labOrders',
     imagingOrder: 'imagingOrders',
     labResult: 'labResults',
+    familyHistory: 'familyHistory',
+    personalHistory: 'personalHistory',
   };
 
   // Spanish labels for category fallback
@@ -410,6 +434,8 @@ export function ClinicalSnapshot({
     referral: 'Referencia',
     observation: 'Observaciones',
     serviceRequest: 'Solicitudes',
+    familyHistory: 'Antecedentes Familiares',
+    personalHistory: 'Antecedentes Personales',
   };
 
   // Group FHIR items by category (normalize to plural)
@@ -1223,10 +1249,150 @@ export function ClinicalSnapshot({
                 </div>
               )}
 
+              {/* Antecedentes (Familiares y Personales) */}
+              {(() => {
+                const familyItems = groupedFHIR['familyHistory'] || [];
+                const personalItems = groupedFHIR['personalHistory'] || [];
+                const allHistory = [...familyItems, ...personalItems];
+                if (allHistory.length === 0) return null;
+                return (
+                  <div style={{
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                    borderLeft: "3px solid #8b5cf6"
+                  }}>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginBottom: "16px",
+                      paddingBottom: "10px",
+                      borderBottom: "1px solid #f1f5f9"
+                    }}>
+                      <Users size={15} color="#8b5cf6" strokeWidth={1.8} />
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{
+                          fontSize: "15px",
+                          fontWeight: 600,
+                          color: "#475569",
+                          margin: 0,
+                          fontFamily: "'DM Sans', sans-serif"
+                        }}>Antecedentes</h3>
+                      </div>
+                      <div style={{
+                        background: "#f5f3ff",
+                        color: "#7c3aed",
+                        padding: "2px 10px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 600
+                      }}>{allHistory.length}</div>
+                    </div>
+
+                    {familyItems.length > 0 && (
+                      <div style={{ marginBottom: personalItems.length > 0 ? "14px" : "0" }}>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: "#7c3aed", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Familiares</div>
+                        <div style={{ display: "grid", gap: "8px" }}>
+                          {familyItems.map((item, i) => (
+                            <div key={item.id || i} style={{
+                              background: "#faf5ff",
+                              border: "1px solid #ede9fe",
+                              borderRadius: "8px",
+                              padding: "12px 14px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "10px"
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: "14px", fontWeight: 600, color: "#1f2937" }}>
+                                  {item.display || item.text}
+                                </div>
+                                {item.relationship && (
+                                  <div style={{ fontSize: "12px", color: "#7c3aed", marginTop: "2px" }}>
+                                    {item.relationship.charAt(0).toUpperCase() + item.relationship.slice(1)}
+                                  </div>
+                                )}
+                                {item.notes && (
+                                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{item.notes}</div>
+                                )}
+                              </div>
+                              {!isHistoryView && (
+                                <div style={{ display: "flex", gap: "4px" }}>
+                                  {onUpdateFHIR && (
+                                    <Button onClick={() => onUpdateFHIR(item)} variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" title="Editar">
+                                      <FileEdit size={14} />
+                                    </Button>
+                                  )}
+                                  {onRemoveFHIR && (
+                                    <Button onClick={() => item.id && onRemoveFHIR(item.id)} variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Eliminar">
+                                      <Trash2 size={14} />
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {personalItems.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: "#7c3aed", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Personales</div>
+                        <div style={{ display: "grid", gap: "8px" }}>
+                          {personalItems.map((item, i) => (
+                            <div key={item.id || i} style={{
+                              background: "#faf5ff",
+                              border: "1px solid #ede9fe",
+                              borderRadius: "8px",
+                              padding: "12px 14px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "10px"
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: "14px", fontWeight: 600, color: "#1f2937" }}>
+                                  {item.display || item.text}
+                                </div>
+                                {item.details && (
+                                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{item.details}</div>
+                                )}
+                                {item.notes && (
+                                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{item.notes}</div>
+                                )}
+                              </div>
+                              {!isHistoryView && (
+                                <div style={{ display: "flex", gap: "4px" }}>
+                                  {onUpdateFHIR && (
+                                    <Button onClick={() => onUpdateFHIR(item)} variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" title="Editar">
+                                      <FileEdit size={14} />
+                                    </Button>
+                                  )}
+                                  {onRemoveFHIR && (
+                                    <Button onClick={() => item.id && onRemoveFHIR(item.id)} variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Eliminar">
+                                      <Trash2 size={14} />
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Otras categorías dinámicas */}
               {Object.entries(groupedFHIR).map(([category, items]) => {
                 // Skip categories we've already handled
-                if (['conditions', 'medications', 'allergies', 'procedures', 'labOrders', 'imagingOrders', 'labResults'].includes(category)) {
+                if (['conditions', 'medications', 'allergies', 'procedures', 'labOrders', 'imagingOrders', 'labResults', 'familyHistory', 'personalHistory'].includes(category)) {
                   return null;
                 }
 
@@ -1361,6 +1527,54 @@ export function ClinicalSnapshot({
             />
           </div>
         </div>
+
+        {/* Generate PDF Buttons */}
+        {onGeneratePDF && !isHistoryView && data.fhir.length > 0 && (() => {
+          const approvedMeds = data.fhir.filter(i => i.type === 'medication' && i.approved !== false)
+          const approvedLabs = data.fhir.filter(i => (i.type === 'labOrder' || i.type === 'order') && i.approved !== false)
+          const approvedRefs = data.fhir.filter(i => i.type === 'referral' && i.approved !== false)
+          if (approvedMeds.length === 0 && approvedLabs.length === 0 && approvedRefs.length === 0) return null
+          return (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <FileDown size={14} className="text-clinical-500" />
+                <span className="text-xs font-bold text-clinical-600 uppercase tracking-wider">Generar Documentos</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {approvedMeds.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                    onClick={() => onGeneratePDF('prescription')}
+                  >
+                    <Pill size={14} /> Receta ({approvedMeds.length} items)
+                  </Button>
+                )}
+                {approvedLabs.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2 text-purple-700 border-purple-200 hover:bg-purple-50"
+                    onClick={() => onGeneratePDF('labOrder')}
+                  >
+                    <TestTube size={14} /> Orden Lab ({approvedLabs.length} items)
+                  </Button>
+                )}
+                {approvedRefs.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                    onClick={() => onGeneratePDF('referral')}
+                  >
+                    <FileText size={14} /> Referencia ({approvedRefs.length})
+                  </Button>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Finalize Button */}
         {onFinalize && !isHistoryView && (

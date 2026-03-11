@@ -233,6 +233,161 @@ class AssistantRequestService {
       }
     }
   }
+
+  /**
+   * Get all requests for a specific doctor
+   */
+  async getRequestsByDoctor(doctorId: string): Promise<AssistantRequest[]> {
+    try {
+      const q = query(
+        collection(db, this.collection),
+        where('doctorId', '==', doctorId)
+      )
+
+      const querySnapshot = await getDocs(q)
+      const requests: AssistantRequest[] = []
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data()
+        requests.push({
+          id: doc.id,
+          ...data,
+          requestedAt: data.requestedAt?.toDate() || new Date(),
+          processedAt: data.processedAt?.toDate()
+        } as AssistantRequest)
+      })
+
+      return requests.sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())
+    } catch (error) {
+      console.error('Error fetching requests by doctor:', error)
+      throw new Error('Error al obtener las solicitudes del médico')
+    }
+  }
+
+  /**
+   * Get all approved assistants for a doctor
+   */
+  async getApprovedAssistants(doctorId: string): Promise<AssistantRequest[]> {
+    try {
+      const q = query(
+        collection(db, this.collection),
+        where('doctorId', '==', doctorId),
+        where('status', '==', 'approved')
+      )
+
+      const querySnapshot = await getDocs(q)
+      const requests: AssistantRequest[] = []
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data()
+        requests.push({
+          id: doc.id,
+          ...data,
+          requestedAt: data.requestedAt?.toDate() || new Date(),
+          processedAt: data.processedAt?.toDate()
+        } as AssistantRequest)
+      })
+
+      return requests.sort((a, b) => (b.processedAt?.getTime() || 0) - (a.processedAt?.getTime() || 0))
+    } catch (error) {
+      console.error('Error fetching approved assistants:', error)
+      throw new Error('Error al obtener los asistentes aprobados')
+    }
+  }
+
+  /**
+   * Update assistant status (for suspensions, reactivations, etc.)
+   */
+  async updateAssistantStatus(
+    userId: string,
+    newStatus: 'approved' | 'suspended' | 'revoked',
+    processedBy: string,
+    notes?: string
+  ): Promise<void> {
+    try {
+      // Find the request by userId
+      const q = query(
+        collection(db, this.collection),
+        where('userId', '==', userId)
+      )
+
+      const querySnapshot = await getDocs(q)
+
+      if (querySnapshot.empty) {
+        throw new Error('No se encontró la solicitud del asistente')
+      }
+
+      const requestDoc = querySnapshot.docs[0]
+      const docRef = doc(db, this.collection, requestDoc.id)
+
+      await setDoc(docRef, {
+        status: newStatus,
+        processedAt: Timestamp.now(),
+        processedBy,
+        notes: notes || ''
+      }, { merge: true })
+
+      console.log(`✅ Assistant status updated to ${newStatus}:`, requestDoc.id)
+    } catch (error) {
+      console.error(`❌ Error updating assistant status:`, error)
+      throw new Error(`Error al actualizar el estado del asistente`)
+    }
+  }
+
+  /**
+   * Migrate existing requests without doctorId
+   * This is a one-time utility function to fix existing requests
+   */
+  async migratePendingRequestsWithoutDoctorId(): Promise<void> {
+    try {
+      console.log('🔄 Migrating pending requests without doctorId...')
+
+      // Get all pending requests
+      const q = query(
+        collection(db, this.collection),
+        where('status', '==', 'pending')
+      )
+
+      const querySnapshot = await getDocs(q)
+      let migratedCount = 0
+
+      for (const docSnapshot of querySnapshot.docs) {
+        const request = docSnapshot.data() as Omit<AssistantRequest, 'id'>
+
+        // Skip if already has doctorId
+        if (request.doctorId && request.doctorId.trim() !== '') {
+          continue
+        }
+
+        // Try to find the doctor by license number
+        if (request.doctorLicenseNumber) {
+          console.log(`🔍 Looking up doctor for license: ${request.doctorLicenseNumber}`)
+          const doctorInfo = await this.findDoctorByLicense(request.doctorLicenseNumber)
+
+          if (doctorInfo) {
+            console.log(`✅ Found doctor: ${doctorInfo.name} (${doctorInfo.id})`)
+
+            // Update the request with doctor information
+            const docRef = doc(db, this.collection, docSnapshot.id)
+            await setDoc(docRef, {
+              doctorId: doctorInfo.id,
+              doctorName: doctorInfo.name
+            }, { merge: true })
+
+            migratedCount++
+            console.log(`✅ Updated request ${docSnapshot.id} with doctorId: ${doctorInfo.id}`)
+          } else {
+            console.warn(`⚠️ No doctor found for license: ${request.doctorLicenseNumber}`)
+          }
+        }
+      }
+
+      console.log(`🎉 Migration completed. Updated ${migratedCount} requests.`)
+    } catch (error) {
+      console.error('❌ Error during migration:', error)
+      throw new Error('Error durante la migración de solicitudes')
+    }
+  }
 }
 
 export const assistantRequestService = new AssistantRequestService()

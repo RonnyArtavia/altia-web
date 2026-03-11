@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
     subscribeToAppointments,
+    subscribeToAppointmentsByDoctors,
     getAppointmentById,
     type AppointmentData,
 } from '@/features/schedule/services/appointmentService'
@@ -81,6 +82,66 @@ export function useAppointments({
     return { data: appointments, loading, error }
 }
 
+// ─── useMultiDoctorAppointments ──────────────────────────────────────────────
+
+interface UseMultiDoctorAppointmentsOptions {
+    doctorIds: string[]
+    organizationId: string
+    startDate?: Date
+    endDate?: Date
+    enabled?: boolean
+}
+
+export function useMultiDoctorAppointments({
+    doctorIds,
+    organizationId,
+    startDate,
+    endDate,
+    enabled = true,
+}: UseMultiDoctorAppointmentsOptions) {
+    const [appointments, setAppointments] = useState<AppointmentData[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<Error | null>(null)
+
+    useEffect(() => {
+        if (!enabled || !organizationId || doctorIds.length === 0) {
+            setAppointments([])
+            setLoading(false)
+            return
+        }
+
+        setLoading(true)
+        setError(null)
+
+        try {
+            const unsubscribe = subscribeToAppointmentsByDoctors(
+                doctorIds,
+                organizationId,
+                (data) => {
+                    setAppointments(data)
+                    setLoading(false)
+                },
+                startDate,
+                endDate
+            )
+            return unsubscribe
+        } catch (err) {
+            setError(err as Error)
+            setLoading(false)
+        }
+    }, [
+        doctorIds.join(','),
+        organizationId,
+        startDate?.getTime(),
+        endDate?.getTime(),
+        enabled,
+    ])
+
+    return { data: appointments, loading, error }
+}
+
+// ─── useAppointment ───────────────────────────────────────────────────────────
+
 export function useAppointment(appointmentId: string, organizationId: string) {
     return useQuery({
         queryKey: ['appointment', appointmentId, organizationId],
@@ -127,12 +188,11 @@ export function useAppointmentStats(
 
     const stats = {
         total: appointments.length,
-        pending: appointments.filter((a) => a.status === 'pending').length,
-        booked: appointments.filter((a) => a.status === 'booked').length,
-        arrived: appointments.filter((a) => a.status === 'arrived').length,
-        fulfilled: appointments.filter((a) => a.status === 'fulfilled').length,
+        scheduled: appointments.filter((a) => a.status === 'scheduled').length,
+        waiting: appointments.filter((a) => a.status === 'waiting').length,
+        inProgress: appointments.filter((a) => a.status === 'in-progress').length,
+        completed: appointments.filter((a) => a.status === 'completed').length,
         cancelled: appointments.filter((a) => a.status === 'cancelled').length,
-        noShow: appointments.filter((a) => a.status === 'no-show').length,
         telemedicine: appointments.filter((a) => a.type === 'telemedicine').length,
         inPerson: appointments.filter((a) => a.type === 'in-person').length,
     }

@@ -173,7 +173,7 @@ export interface ChatMessage {
 
 export interface FHIRPlanItem {
     id: string
-    type: 'condition' | 'medication' | 'allergy' | 'procedure' | 'observation' | 'diagnostic' | 'labResult' | 'imagingStudy' | 'order' | 'device' | 'labOrder' | 'imagingOrder'
+    type: 'condition' | 'medication' | 'allergy' | 'procedure' | 'observation' | 'diagnostic' | 'labResult' | 'imagingStudy' | 'order' | 'device' | 'labOrder' | 'imagingOrder' | 'familyHistory' | 'personalHistory' | 'referral'
     status: 'active' | 'inactive' | 'completed' | 'cancelled'
     text: string
     display?: string
@@ -193,6 +193,12 @@ export interface FHIRPlanItem {
     route?: string        // "oral", "intravenosa", etc.
     instructions?: string // "con alimentos", "en ayunas", etc.
     bodySite?: string     // For imaging orders - body region
+    relationship?: string  // For familyHistory items
+
+    // Referral fields
+    specialty?: string
+    reasonForReferral?: string
+    clinicalSummary?: string
 
     // Legacy compatibility
     action?: 'Add' | 'Modify' | 'Remove'

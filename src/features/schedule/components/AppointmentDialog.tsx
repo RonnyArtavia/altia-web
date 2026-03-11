@@ -3,7 +3,7 @@
  * Clean, modern design inspired by Microsoft Outlook calendar
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { format, addMinutes, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
@@ -18,16 +18,18 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { PatientSelector } from './PatientSelector'
+import { PatientSelector, type PatientSearchContext } from './PatientSelector'
+import { QuickPatientForm } from './QuickPatientForm'
 import { useAppointmentMutations } from '../hooks/useAppointmentMutations'
 import { generateAllDayTimeSlots } from '../hooks/useScheduleSlots'
 import { useAuthStore } from '@/features/auth/stores/authStore'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import type { Agenda } from '../types/agenda'
 
 // Helper function to calculate end time based on start time and duration
 const calculateEndTime = (startTime: string, durationMinutes: number): string => {
@@ -39,8 +41,8 @@ const calculateEndTime = (startTime: string, durationMinutes: number): string =>
   return format(endDate, 'HH:mm')
 }
 
-// Default appointment duration in minutes
-const duration = 60
+// Default appointment duration in minutes (overridden by selected agenda)
+const DEFAULT_DURATION = 30
 
 interface Patient {
   id: string
@@ -59,11 +61,12 @@ interface AppointmentData {
   start: Date
   end: Date
   type: 'in-person' | 'telemedicine'
-  status: 'pending' | 'booked' | 'arrived' | 'fulfilled' | 'cancelled' | 'no-show'
+  status: 'scheduled' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'
   reason?: string
   description?: string
   specialty?: string
   organizationId: string
+  agendaId?: string
 }
 
 interface AppointmentDialogProps {
@@ -75,6 +78,7 @@ interface AppointmentDialogProps {
   timeSlot?: string
   appointment?: AppointmentData | null
   appointmentRequest?: any
+  agendas?: Agenda[]
 }
 
 export function AppointmentDialog({
@@ -86,6 +90,7 @@ export function AppointmentDialog({
   timeSlot,
   appointment,
   appointmentRequest,
+  agendas,
 }: AppointmentDialogProps) {
   // Form state
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
@@ -98,8 +103,21 @@ export function AppointmentDialog({
   const [selectedSlot, setSelectedSlot] = useState<string | null>(timeSlot || null)
   const [showPatientSelector, setShowPatientSelector] = useState(false)
 
+  const [selectedAgendaId, setSelectedAgendaId] = useState<string>('none')
+
+  // Dynamic duration: use agenda's defaultDuration if an agenda is selected
+  const duration = useMemo(() => {
+    if (selectedAgendaId && selectedAgendaId !== 'none' && agendas) {
+      const agenda = agendas.find(a => a.id === selectedAgendaId)
+      if (agenda) return agenda.defaultDuration
+    }
+    return DEFAULT_DURATION
+  }, [selectedAgendaId, agendas])
+
   // UI state
   const [showCalendar, setShowCalendar] = useState(false)
+  const [showQuickRegister, setShowQuickRegister] = useState(false)
+  const [searchContext, setSearchContext] = useState<PatientSearchContext | null>(null)
 
   // Ref for auto-scroll to selected time
   const slotsContainerRef = useRef<HTMLDivElement>(null)
@@ -107,26 +125,76 @@ export function AppointmentDialog({
   const { userData } = useAuthStore()
   const { createAppointment, updateAppointment } = useAppointmentMutations()
 
-  // Doctor schedule - using default schedule
-  const daySchedule = {
-    start: '08:00',
-    end: '18:00',
-    slotDuration: 30,
-    breakStart: '12:00',
-    breakEnd: '13:00'
-  }
+  // Get schedule from selected agenda or use a combined schedule from all agendas
+  const daySchedule = useMemo(() => {
+    if (selectedAgendaId && selectedAgendaId !== 'none' && agendas) {
+      const agenda = agendas.find(a => a.id === selectedAgendaId)
+      if (agenda) {
+        const dayOfWeek = appointmentDate.getDay()
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+        const dayName = dayNames[dayOfWeek] as keyof typeof agenda.schedule
+        const daySchedule = agenda.schedule[dayName]
 
-  // Show all time slots with availability based on doctor's schedule
+        if (daySchedule?.enabled) {
+          return {
+            start: daySchedule.start,
+            end: daySchedule.end,
+            slotDuration: 30,
+            breakStart: undefined,
+            breakEnd: undefined
+          }
+        }
+      }
+    }
+
+    // If no agenda selected or day not enabled, use combined schedule from all available agendas
+    if (agendas && agendas.length > 0) {
+      const dayOfWeek = appointmentDate.getDay()
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      const dayName = dayNames[dayOfWeek] as any
+
+      let earliestStart: string | null = null
+      let latestEnd: string | null = null
+
+      agendas.forEach(agenda => {
+        if (agenda.enabled && agenda.schedule?.[dayName]?.enabled) {
+          const daySchedule = agenda.schedule[dayName]
+          if (!earliestStart || daySchedule.start < earliestStart) {
+            earliestStart = daySchedule.start
+          }
+          if (!latestEnd || daySchedule.end > latestEnd) {
+            latestEnd = daySchedule.end
+          }
+        }
+      })
+
+      if (earliestStart && latestEnd) {
+        return {
+          start: earliestStart,
+          end: latestEnd,
+          slotDuration: 30,
+          breakStart: undefined,
+          breakEnd: undefined
+        }
+      }
+    }
+
+    // Fallback to null if no schedules available
+    return null
+  }, [selectedAgendaId, agendas, appointmentDate])
+
+  // Show all time slots with availability based on schedule
   const availableSlots = generateAllDayTimeSlots(daySchedule, 30)
 
   const isPending = createAppointment.isPending || updateAppointment.isPending
 
-  // Update start time when slot is selected
+  // Update start time and recalculate end time when slot is selected
   useEffect(() => {
     if (selectedSlot && selectedSlot !== startTime) {
       setStartTime(selectedSlot)
+      setEndTime(calculateEndTime(selectedSlot, duration))
     }
-  }, [selectedSlot])
+  }, [selectedSlot, duration])
 
   // Auto-scroll to selected time in slots panel
   useEffect(() => {
@@ -183,6 +251,7 @@ export function AppointmentDialog({
       setAppointmentType(appointment.type)
       setReason(appointment.reason || '')
       setDescription(appointment.description || '')
+      setSelectedAgendaId((appointment as any).agendaId || 'none')
     } else if (appointmentRequest) {
       // Initialize form with appointment request data
       setSelectedPatient({
@@ -193,23 +262,49 @@ export function AppointmentDialog({
       })
       setAppointmentDate(date || new Date())
       setStartTime(timeSlot || '09:00')
-      setEndTime(calculateEndTime(timeSlot || '09:00', duration))
+      setEndTime(calculateEndTime(timeSlot || '09:00', DEFAULT_DURATION))
       setSelectedSlot(timeSlot || '09:00')
       setAppointmentType('in-person')
       setReason(appointmentRequest.reason || '')
       setDescription(appointmentRequest.description || '')
+      setSelectedAgendaId('none')
     } else {
       // Reset form for new appointment
       setSelectedPatient(null)
       setAppointmentDate(date || new Date())
       setStartTime(timeSlot || '09:00')
-      setEndTime(calculateEndTime(timeSlot || '09:00', duration))
+      setEndTime(calculateEndTime(timeSlot || '09:00', DEFAULT_DURATION))
       setSelectedSlot(timeSlot || '09:00')
       setAppointmentType('in-person')
       setReason('')
       setDescription('')
+      setSelectedAgendaId('none')
     }
   }, [appointment, appointmentRequest, date, timeSlot])
+
+  // Auto-select agenda when creating new appointment
+  useEffect(() => {
+    if (!appointment && !appointmentRequest && agendas && agendas.length > 0 && selectedAgendaId === 'none') {
+      const dayOfWeek = appointmentDate.getDay()
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      const dayName = dayNames[dayOfWeek] as any
+      const appointmentTime = startTime
+
+      // Find the first agenda that covers the selected time and day
+      const suitableAgenda = agendas.find(agenda => {
+        if (!agenda.enabled || !agenda.schedule[dayName]?.enabled) return false
+        const daySchedule = agenda.schedule[dayName]
+        return appointmentTime >= daySchedule.start && appointmentTime < daySchedule.end
+      })
+
+      if (suitableAgenda) {
+        setSelectedAgendaId(suitableAgenda.id)
+      } else if (agendas.length === 1) {
+        // If only one agenda available, select it regardless
+        setSelectedAgendaId(agendas[0].id)
+      }
+    }
+  }, [appointment, appointmentRequest, agendas, selectedAgendaId, appointmentDate, startTime])
 
   const handleSave = async () => {
     if (!selectedPatient) {
@@ -236,6 +331,7 @@ export function AppointmentDialog({
       type: appointmentType,
       reason: reason,
       description: description,
+      ...(selectedAgendaId && selectedAgendaId !== 'none' ? { agendaId: selectedAgendaId } : {}),
     }
 
     try {
@@ -252,7 +348,7 @@ export function AppointmentDialog({
           ...appointmentData,
           doctorId,
           organizationId,
-          status: 'pending'
+          status: 'scheduled'
         })
       }
 
@@ -271,7 +367,8 @@ export function AppointmentDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-5xl h-[80vh] p-0 bg-white flex flex-col">
+        <DialogContent className="max-w-5xl h-[80vh] p-0 bg-white flex flex-col" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{appointment ? 'Editar Cita' : 'Nueva Cita'}</DialogTitle>
           {/* Header */}
           <div className="flex items-center p-4 border-b bg-gray-50">
             <div className="flex items-center space-x-3">
@@ -286,40 +383,55 @@ export function AppointmentDialog({
             {/* Left Panel - Form */}
             <div className="flex-1 flex flex-col">
               <div className="p-6 space-y-6 overflow-y-auto flex-1">
-                {/* Patient Selection */}
+                {/* Patient Selection / Quick Register */}
                 <div className="space-y-3">
                   <Label className="text-sm text-gray-700 font-medium">Paciente *</Label>
-                  <div className="border border-gray-300 rounded-lg p-3 bg-white hover:border-blue-500 transition-colors cursor-pointer"
-                       onClick={() => setShowPatientSelector(true)}>
-                    {selectedPatient ? (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <User className="h-5 w-5 text-blue-600" />
+                  {showQuickRegister ? (
+                    <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
+                      <QuickPatientForm
+                        organizationId={organizationId}
+                        searchContext={searchContext}
+                        onPatientCreated={(patient) => {
+                          setSelectedPatient(patient)
+                          setShowQuickRegister(false)
+                          setSearchContext(null)
+                        }}
+                        onCancel={() => { setShowQuickRegister(false); setSearchContext(null) }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="border border-gray-300 rounded-lg p-3 bg-white hover:border-blue-500 transition-colors cursor-pointer"
+                         onClick={() => setShowPatientSelector(true)}>
+                      {selectedPatient ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <User className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{selectedPatient.name}</p>
+                              {selectedPatient.email && (
+                                <p className="text-sm text-gray-500">{selectedPatient.email}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-sm text-blue-600 hover:text-blue-700">
+                            Cambiar
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-3 text-gray-500">
+                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                            <User className="h-5 w-5 text-gray-400" />
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900">{selectedPatient.name}</p>
-                            {selectedPatient.email && (
-                              <p className="text-sm text-gray-500">{selectedPatient.email}</p>
-                            )}
+                            <p className="font-medium">Seleccionar paciente</p>
+                            <p className="text-sm">Click aquí para buscar y seleccionar</p>
                           </div>
                         </div>
-                        <div className="text-sm text-blue-600 hover:text-blue-700">
-                          Cambiar
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-3 text-gray-500">
-                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="font-medium">Seleccionar paciente</p>
-                          <p className="text-sm">Click aquí para buscar y seleccionar</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Date and Time */}
@@ -342,7 +454,7 @@ export function AppointmentDialog({
                             </div>
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent className="w-auto p-0 z-[60] bg-white shadow-xl border-2 border-gray-200" align="start">
                           <Calendar
                             mode="single"
                             selected={appointmentDate}
@@ -354,6 +466,8 @@ export function AppointmentDialog({
                             }}
                             disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                             initialFocus
+                            locale={es}
+                            weekStartsOn={1}
                           />
                         </PopoverContent>
                       </Popover>
@@ -373,7 +487,7 @@ export function AppointmentDialog({
                             </div>
                           </div>
                         </SelectTrigger>
-                        <SelectContent className="max-h-60">
+                        <SelectContent className="max-h-60 z-[60] bg-white shadow-xl border-2 border-gray-200">
                           {availableSlots.map((slot) => (
                             <SelectItem
                               key={slot.time}
@@ -419,6 +533,45 @@ export function AppointmentDialog({
                     </Button>
                   </div>
                 </div>
+
+                {/* Agenda selector */}
+                {agendas && agendas.length > 0 && (
+                  <div className="space-y-3">
+                    <Label className="text-sm text-gray-700 font-medium">Agenda</Label>
+                    <Select value={selectedAgendaId} onValueChange={setSelectedAgendaId}>
+                      <SelectTrigger className="h-10 border-gray-300">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          {selectedAgendaId && selectedAgendaId !== 'none' && agendas.find(a => a.id === selectedAgendaId) && (
+                            <div
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: agendas.find(a => a.id === selectedAgendaId)!.color }}
+                            />
+                          )}
+                          <SelectValue placeholder="Sin agenda asignada" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="z-[60] bg-white shadow-xl border-2 border-gray-200">
+                        <SelectItem value="none">Sin agenda</SelectItem>
+                        {agendas.map(agenda => (
+                          <SelectItem key={agenda.id} value={agenda.id}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: agenda.color }} />
+                              <span>{agenda.name}</span>
+                              {agenda.location && <span className="text-xs text-gray-400 ml-1">· {agenda.location}</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedAgendaId && selectedAgendaId !== 'none' && agendas.find(a => a.id === selectedAgendaId) && (
+                      <p className="text-xs text-gray-500">
+                        Duración: {agendas.find(a => a.id === selectedAgendaId)!.defaultDuration} min
+                        {agendas.find(a => a.id === selectedAgendaId)!.bufferMinutes > 0 &&
+                          ` + ${agendas.find(a => a.id === selectedAgendaId)!.bufferMinutes} min buffer`}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Doctor specialty info */}
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -601,6 +754,11 @@ export function AppointmentDialog({
           setShowPatientSelector(false)
         }}
         organizationId={organizationId}
+        onNoResults={(ctx) => {
+          setSearchContext(ctx)
+          setShowPatientSelector(false)
+          setShowQuickRegister(true)
+        }}
       />
     </>
   )

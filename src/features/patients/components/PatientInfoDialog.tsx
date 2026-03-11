@@ -92,7 +92,7 @@ export function PatientInfoDialog({
         start: now,
         end: end,
         type: 'in-person',
-        status: 'arrived',
+        status: 'in-progress',
         reason: 'Consulta inmediata desde lista de pacientes',
         description: 'Consulta iniciada desde el diálogo de información del paciente'
       })
@@ -114,7 +114,8 @@ export function PatientInfoDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">{patient.name}</DialogTitle>
         {/* Header with background gradient */}
         <div className="relative -m-6 mb-6 bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-6 text-white">
           <div className="flex items-center gap-4">

@@ -25,6 +25,12 @@ export interface AppointmentMetrics {
     videoWeek: number
     inPersonMonth: number
     videoMonth: number
+    // Status breakdown for today
+    bookedToday: number      // Programadas
+    confirmedToday: number   // Confirmadas
+    inProgressToday: number  // En curso
+    completedToday: number   // Finalizadas
+    cancelledToday: number   // Canceladas
 }
 
 export interface BillingMetrics {
@@ -135,7 +141,7 @@ async function fetchAppointmentMetrics(
     weekStart: Date,
     monthStart: Date
 ): Promise<AppointmentMetrics> {
-    const empty: AppointmentMetrics = { today: 0, week: 0, month: 0, inPersonToday: 0, videoToday: 0, inPersonWeek: 0, videoWeek: 0, inPersonMonth: 0, videoMonth: 0 }
+    const empty: AppointmentMetrics = { today: 0, week: 0, month: 0, inPersonToday: 0, videoToday: 0, inPersonWeek: 0, videoWeek: 0, inPersonMonth: 0, videoMonth: 0, bookedToday: 0, confirmedToday: 0, inProgressToday: 0, completedToday: 0, cancelledToday: 0 }
     if (!organizationId) return empty
 
     try {
@@ -152,6 +158,9 @@ async function fetchAppointmentMetrics(
 
         const isTele = (d: any) => d.data().type === 'telemedicine'
 
+        const statusCount = (snap: typeof todaySnap, status: string) =>
+            snap.docs.filter(d => d.data().status === status).length
+
         return {
             today: todaySnap.size,
             week: weekSnap.size,
@@ -162,6 +171,11 @@ async function fetchAppointmentMetrics(
             videoWeek: weekSnap.docs.filter(isTele).length,
             inPersonMonth: monthSnap.docs.filter((d) => !isTele(d)).length,
             videoMonth: monthSnap.docs.filter(isTele).length,
+            bookedToday: statusCount(todaySnap, 'booked'),
+            confirmedToday: statusCount(todaySnap, 'confirmed'),
+            inProgressToday: statusCount(todaySnap, 'fulfilled'),
+            completedToday: statusCount(todaySnap, 'completed'),
+            cancelledToday: statusCount(todaySnap, 'cancelled'),
         }
     } catch {
         return empty
@@ -256,7 +270,7 @@ async function fetchNextAppointments(userId: string, organizationId?: string): P
 function getBasicDashboardData(userId: string, userName?: string): DashboardData {
     return {
         doctor: { id: userId, name: userName || 'Doctor', specialty: 'Medicina General', organizationName: 'Clínica Altia' },
-        appointments: { today: 0, week: 0, month: 0, inPersonToday: 0, videoToday: 0, inPersonWeek: 0, videoWeek: 0, inPersonMonth: 0, videoMonth: 0 },
+        appointments: { today: 0, week: 0, month: 0, inPersonToday: 0, videoToday: 0, inPersonWeek: 0, videoWeek: 0, inPersonMonth: 0, videoMonth: 0, bookedToday: 0, confirmedToday: 0, inProgressToday: 0, completedToday: 0, cancelledToday: 0 },
         billing: { todayAmount: 0, weekAmount: 0, monthAmount: 0, pendingInvoices: 0 },
         unreadMessages: 0,
         nextAppointments: [],

@@ -388,6 +388,7 @@ function generateFallbackSuggestions(text: string, patientIPS?: IPSDisplayData):
             title: 'Manejo del Dolor',
             description: 'Considerar analgésicos según intensidad: paracetamol 500mg c/8h o ibuprofeno 400mg c/8h',
             type: 'medication',
+            source: 'general',
             data: { indication: 'dolor' },
             confidence: 0.8,
             priority: 'medium'
@@ -401,6 +402,7 @@ function generateFallbackSuggestions(text: string, patientIPS?: IPSDisplayData):
             title: 'Manejo de Fiebre',
             description: 'Considerar antipirético: paracetamol 500mg c/6h PRN fiebre >38°C',
             type: 'medication',
+            source: 'general',
             data: { indication: 'fiebre' },
             confidence: 0.9,
             priority: 'high'
@@ -422,6 +424,7 @@ function generateFallbackSuggestions(text: string, patientIPS?: IPSDisplayData):
                 title: 'Control de Hipertensión',
                 description: 'Considerar IECA: enalapril 10mg c/12h, ajustar según respuesta',
                 type: 'medication',
+                source: 'general',
                 data: { indication: 'hipertensión' },
                 confidence: 0.7,
                 priority: 'medium'
@@ -436,6 +439,7 @@ function generateFallbackSuggestions(text: string, patientIPS?: IPSDisplayData):
             title: 'Control de Laboratorios',
             description: 'Solicitar HbA1c, glicemia en ayunas y perfil lipídico para control metabólico',
             type: 'lab',
+            source: 'general',
             data: { indication: 'diabetes' },
             confidence: 0.8,
             priority: 'medium'
@@ -449,6 +453,7 @@ function generateFallbackSuggestions(text: string, patientIPS?: IPSDisplayData):
             title: 'Considerar Antibioticoterapia',
             description: 'Evaluar necesidad de antibiótico según severidad y tipo de infección',
             type: 'medication',
+            source: 'general',
             data: { indication: 'infección' },
             confidence: 0.6,
             priority: 'medium'
@@ -462,6 +467,7 @@ function generateFallbackSuggestions(text: string, patientIPS?: IPSDisplayData):
             title: 'Manejo de Tos',
             description: 'Considerar expectorante: bromhexina 8mg c/8h o dextrometorfano PRN tos seca',
             type: 'medication',
+            source: 'general',
             data: { indication: 'tos' },
             confidence: 0.7,
             priority: 'low'
@@ -734,7 +740,8 @@ export default function useMedicalCopilot(options: UseMedicalCopilotOptions = {}
                     if (result.suggestions && result.suggestions.length > 0) {
                         typedSuggestions = result.suggestions.map(s => ({
                             ...s,
-                            type: (s.type as CopilotSuggestion['type']) || 'medication'
+                            type: (s.type as CopilotSuggestion['type']) || 'medication',
+                            source: s.source || 'general'
                         }))
                         setSuggestions(prev => [...prev, ...typedSuggestions])
                         console.log('✅ Added suggestions from AI response:', result.suggestions)
@@ -1135,7 +1142,10 @@ export default function useMedicalCopilot(options: UseMedicalCopilotOptions = {}
         // silentMode: When true, suppress user message display (used for automatic streaming)
         const silentMode = options?.silentMode ?? false
 
-        setInputText('') // Clear input immediately for better UX
+        // Only clear inputText on explicit (non-silent) sends to preserve typed text during auto-flush
+        if (!silentMode) {
+            setInputText('')
+        }
 
         // Add user message optimistically BEFORE processing (so it appears before assistant response)
         // Will be removed if AI classifies as noise

@@ -130,21 +130,51 @@ export function isInBreakTime(timeSlot: string, schedule: ScheduleSlots): boolea
 }
 
 /**
- * Hook to get all unique time slots for a week and per-day schedules
+ * Helper function to calculate GCD (Greatest Common Divisor)
  */
-export function useWeekTimeSlots(doctorId: string, organizationId: string, startDate: Date) {
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
+}
+
+/**
+ * Helper function to calculate GCD of multiple numbers
+ */
+function gcdMultiple(numbers: number[]): number {
+  return numbers.reduce(gcd)
+}
+
+/**
+ * Calculate optimal slot duration based on all agendas' slotDuration
+ * This ensures we can display all possible appointment times correctly
+ */
+function calculateOptimalSlotDuration(agendas: any[]): number {
+  if (agendas.length === 0) return 30 // Default
+
+  const slotDurations = agendas
+    .filter(agenda => agenda.enabled && agenda.slotDuration)
+    .map(agenda => agenda.slotDuration)
+
+  if (slotDurations.length === 0) return 30 // Default
+
+  // Find GCD of all slot durations to get the finest granularity
+  const optimalDuration = gcdMultiple(slotDurations)
+
+  console.log('🔧 calculateOptimalSlotDuration - Input durations:', slotDurations, 'Optimal:', optimalDuration)
+
+  // Ensure minimum 5 minutes and maximum 60 minutes
+  return Math.max(5, Math.min(60, optimalDuration))
+}
+
+/**
+ * Hook to get all unique time slots for a week and per-day schedules
+ * Now uses actual agendas with proper slot duration calculation
+ */
+export function useWeekTimeSlots(doctorId: string, organizationId: string, startDate: Date, agendas: any[] = []) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
   const { timeSlots, daySchedules } = useMemo(() => {
-    // Default schedule for all weekdays
-    const defaultSchedule: ScheduleSlots = {
-      start: '08:00',
-      end: '18:00',
-      slotDuration: 30,
-      breakStart: '12:00',
-      breakEnd: '13:00'
-    }
+    console.log('🔧 useWeekTimeSlots - Processing agendas:', agendas)
 
     const allTimeSlots = new Set<string>()
     const daySchedules: { [key: string]: ScheduleSlots | null } = {}
@@ -155,15 +185,72 @@ export function useWeekTimeSlots(doctorId: string, organizationId: string, start
       return date
     })
 
+    // If no agendas, return empty schedules
+    if (agendas.length === 0) {
+      console.log('🔧 No agendas found, returning empty schedules')
+      weekDays.forEach(day => {
+        const dayKey = day.toISOString().split('T')[0]
+        daySchedules[dayKey] = null
+      })
+      return {
+        timeSlots: [],
+        daySchedules
+      }
+    }
+
+    // Calculate optimal slot duration based on all agendas
+    const optimalSlotDuration = calculateOptimalSlotDuration(agendas)
+
     weekDays.forEach(day => {
       const dayKey = day.toISOString().split('T')[0] // YYYY-MM-DD format
       const dayOfWeek = day.getDay()
 
-      // Assume weekdays (Monday-Friday) have schedule, weekends don't
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        daySchedules[dayKey] = defaultSchedule
-        const slots = generateTimeSlotsFromConfig(defaultSchedule)
+      // Convert day of week: Sunday = 0 -> sunday, Monday = 1 -> monday, etc.
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      const dayName = dayNames[dayOfWeek]
+
+      // Find the earliest start time and latest end time from all enabled agendas for this day
+      let earliestStart: string | null = null
+      let latestEnd: string | null = null
+      let hasScheduleForDay = false
+
+      agendas.forEach(agenda => {
+        console.log(`🔧 Checking agenda for ${dayName}:`, {
+          agendaName: agenda.name,
+          enabled: agenda.enabled,
+          slotDuration: agenda.slotDuration,
+          hasSchedule: !!agenda.schedule,
+          daySchedule: agenda.schedule?.[dayName]
+        })
+
+        if (!agenda.enabled || !agenda.schedule?.[dayName]?.enabled) return
+
+        const daySchedule = agenda.schedule[dayName]
+        hasScheduleForDay = true
+
+        console.log(`🔧 Found valid schedule for ${dayName}:`, daySchedule)
+
+        if (!earliestStart || daySchedule.start < earliestStart) {
+          earliestStart = daySchedule.start
+        }
+        if (!latestEnd || daySchedule.end > latestEnd) {
+          latestEnd = daySchedule.end
+        }
+      })
+
+      if (hasScheduleForDay && earliestStart && latestEnd) {
+        const scheduleConfig: ScheduleSlots = {
+          start: earliestStart,
+          end: latestEnd,
+          slotDuration: optimalSlotDuration, // Use calculated optimal slot duration
+          // No breaks by default - can be extended later
+        }
+
+        daySchedules[dayKey] = scheduleConfig
+        const slots = generateTimeSlotsFromConfig(scheduleConfig)
         slots.forEach(slot => allTimeSlots.add(slot))
+
+        console.log(`🔧 Generated ${slots.length} slots for ${dayName} with ${optimalSlotDuration}min duration`)
       } else {
         daySchedules[dayKey] = null
       }
@@ -173,7 +260,7 @@ export function useWeekTimeSlots(doctorId: string, organizationId: string, start
       timeSlots: Array.from(allTimeSlots).sort(),
       daySchedules
     }
-  }, [startDate])
+  }, [startDate, agendas])
 
   return {
     timeSlots,

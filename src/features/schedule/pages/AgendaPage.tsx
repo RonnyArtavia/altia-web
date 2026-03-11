@@ -8,11 +8,8 @@ import {
   Video,
   MapPin,
   User,
-  Settings,
-  Filter,
   RefreshCcw,
   Search,
-  MoreHorizontal
 } from 'lucide-react'
 import { format, addDays, subDays, startOfDay, startOfWeek, endOfWeek, isToday, isSameDay, startOfMonth, endOfMonth, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -26,19 +23,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAuthStore } from '@/features/auth/stores/authStore'
-import { useAppointments } from '../hooks/useAppointments'
+import { useMultiDoctorAppointments } from '../hooks/useAppointments'
+import { useAgendas, useMultiAgendaBlocks } from '../hooks/useAgendas'
+import { useDoctors } from '../hooks/useDoctors'
 import { useScheduleForDay, useWeekTimeSlots, generateTimeSlotsFromConfig, generateAllDayTimeSlots, getDayScheduleFromWeek, useDoctor } from '../hooks/useScheduleSlots'
 import { AppointmentDialog } from '../components/AppointmentDialog'
 import { AppointmentOptionsDialog } from '../components/AppointmentOptionsDialog'
+import { AgendaLeftPanel } from '../components/AgendaLeftPanel'
+import { AgendaFormDialog } from '../components/AgendaFormDialog'
+import { BlockScheduleDialog } from '../components/BlockScheduleDialog'
+import { RescheduleDialog } from '../components/RescheduleDialog'
+import type { ScheduleBlock } from '../types/agenda'
 import { cn } from '@/lib/utils'
+import type { Agenda } from '../types/agenda'
+import type { AppointmentData as ServiceAppointmentData } from '../services/appointmentService'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Pendiente', color: 'bg-warning/10 text-warning-700' },
-  booked: { label: 'Confirmada', color: 'bg-primary/10 text-primary-700' },
-  arrived: { label: 'En espera', color: 'bg-accent/10 text-accent-700' },
-  fulfilled: { label: 'Completada', color: 'bg-success/10 text-success-700' },
+  scheduled: { label: 'Programada', color: 'bg-primary/10 text-primary-700' },
+  waiting: { label: 'En espera', color: 'bg-warning/10 text-warning-700' },
+  'in-progress': { label: 'En atención', color: 'bg-accent/10 text-accent-700' },
+  completed: { label: 'Completada', color: 'bg-success/10 text-success-700' },
   cancelled: { label: 'Cancelada', color: 'bg-danger/10 text-danger-700' },
-  'no-show': { label: 'No asistió', color: 'bg-clinical-100 text-clinical-600' },
+}
+
+// Helper function for GCD calculation
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
 }
 
 type ViewMode = 'day' | 'week' | 'month'
@@ -52,10 +62,12 @@ interface AppointmentData {
   start: Date
   end: Date
   type: 'in-person' | 'telemedicine'
-  status: 'pending' | 'booked' | 'arrived' | 'fulfilled' | 'cancelled' | 'no-show'
+  status: 'scheduled' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'
   reason?: string
   description?: string
   organizationId: string
+  agendaId?: string
+  waitingAt?: Date
 }
 
 export default function AgendaPage() {
@@ -111,12 +123,101 @@ export default function AgendaPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [showCancelledAppointments, setShowCancelledAppointments] = useState(false)
 
+  // Agenda management states
+  const [selectedAgendaIds, setSelectedAgendaIds] = useState<string[]>([])
+  const [showAgendaFormDialog, setShowAgendaFormDialog] = useState(false)
+  const [editingAgenda, setEditingAgenda] = useState<Agenda | null>(null)
+  const [showBlockDialog, setShowBlockDialog] = useState(false)
+  const [blockTargetAgendaId, setBlockTargetAgendaId] = useState<string>('')
+  const [blockTargetAgendaName, setBlockTargetAgendaName] = useState<string>('')
+
+  // Reschedule state
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false)
+  const [rescheduleTarget, setRescheduleTarget] = useState<{
+    appointment: AppointmentData
+    newDate: Date
+    newTime: string
+  } | null>(null)
+
   const agendaRef = useRef<HTMLDivElement>(null)
 
   // Determine if user is secretary/assistant
   const isSecretary = userData?.role === 'secretary'
-  const doctorId = isSecretary ? userData?.doctorId : user?.uid
+  const selfDoctorId = isSecretary ? undefined : user?.uid
   const organizationId = userData?.organizationId
+
+  // Load all doctors in the org (secretary only)
+  const { doctors } = useDoctors(organizationId || '', isSecretary && !!organizationId)
+
+  // Multi-doctor filter (secretary selects which doctors to view)
+  const [selectedDoctorIds, setSelectedDoctorIds] = useState<string[]>([])
+
+  // Effective doctor IDs used for appointment subscription
+  const effectiveDoctorIds = useMemo(() => {
+    if (!isSecretary) return selfDoctorId ? [selfDoctorId] : []
+    if (selectedDoctorIds.length > 0) return selectedDoctorIds
+    return doctors.map(d => d.uid)
+  }, [isSecretary, selfDoctorId, selectedDoctorIds, doctors])
+
+  // Load agendas — all org agendas for secretary, own agendas for doctor
+  const { agendas } = useAgendas({
+    organizationId: organizationId || '',
+    doctorId: isSecretary ? null : (selfDoctorId || null),
+    enabled: !!organizationId,
+  })
+
+  // Panel agendas - always show all agendas in left panel, filtered only by doctor selection
+  const panelAgendas = useMemo(() => {
+    let filtered = agendas
+
+    // Filter by selected doctors (for secretaries) - this affects what shows in the panel
+    if (isSecretary && selectedDoctorIds.length > 0) {
+      filtered = filtered.filter(a => selectedDoctorIds.includes(a.doctorId))
+    }
+
+    return filtered
+  }, [agendas, isSecretary, selectedDoctorIds])
+
+  // Visible agendas for calendar data - applies both doctor and agenda filtering
+  const visibleAgendas = useMemo(() => {
+    let filtered = agendas
+
+    // Filter by selected doctors (for secretaries)
+    if (isSecretary && selectedDoctorIds.length > 0) {
+      filtered = filtered.filter(a => selectedDoctorIds.includes(a.doctorId))
+    }
+
+    // Filter by selected agendas (for both doctors and secretaries) - this affects calendar data only
+    if (selectedAgendaIds.length > 0) {
+      filtered = filtered.filter(a => selectedAgendaIds.includes(a.id))
+    }
+
+    return filtered
+  }, [agendas, isSecretary, selectedDoctorIds, selectedAgendaIds])
+
+  // Doctor toggle handler for left panel
+  const handleDoctorToggle = (uid: string) => {
+    setSelectedDoctorIds(prev =>
+      prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
+    )
+  }
+
+  // Agenda toggle handler — simple inclusion/exclusion logic
+  const handleAgendaToggle = (id: string) => {
+    setSelectedAgendaIds(prev => {
+      if (prev.includes(id)) {
+        // Remove the agenda from selection
+        return prev.filter(aid => aid !== id)
+      } else {
+        // Add the agenda to selection
+        return [...prev, id]
+      }
+    })
+  }
+
+  // Load blocks for all visible agendas (for visual overlays)
+  const visibleAgendaIds = useMemo(() => visibleAgendas.map(a => a.id), [visibleAgendas])
+  const { blocks } = useMultiAgendaBlocks(organizationId || '', visibleAgendaIds)
 
   // Helper function to calculate current time position in the schedule
   const getCurrentTimePosition = (timeSlots: string[], slotDuration: number, slotHeight: number): number => {
@@ -229,12 +330,12 @@ export default function AgendaPage() {
     }
   }, [assignmentMode, assignmentData, setSearchParams])
 
-  const { data: appointments = [], loading } = useAppointments({
-    doctorId: doctorId || '',
+  const { data: appointments = [], loading } = useMultiDoctorAppointments({
+    doctorIds: effectiveDoctorIds,
     organizationId: organizationId || '',
     startDate,
     endDate,
-    enabled: !!doctorId && !!organizationId,
+    enabled: effectiveDoctorIds.length > 0 && !!organizationId,
   })
 
   const handlePreviousPeriod = () => {
@@ -282,6 +383,20 @@ export default function AgendaPage() {
     }
   }
 
+  const getAgendaSelectionTitle = () => {
+    if (selectedAgendaIds.length === 0) {
+      return 'Todas las agendas'
+    } else if (selectedAgendaIds.length === 1) {
+      const agenda = panelAgendas.find(a => a.id === selectedAgendaIds[0])
+      if (agenda) {
+        return `${agenda.doctorName} - ${agenda.name}`
+      }
+      return 'Agenda seleccionada'
+    } else {
+      return `${selectedAgendaIds.length} agendas seleccionadas`
+    }
+  }
+
   const handleSlotClick = (date: Date, time: string) => {
     setSelectedSlot({ date, time })
     setShowAppointmentDialog(true)
@@ -297,19 +412,50 @@ export default function AgendaPage() {
     setShowAppointmentDialog(true)
   }
 
+  const handleReschedule = (appointment: AppointmentData, newDate: Date, newTime: string) => {
+    setRescheduleTarget({ appointment, newDate, newTime })
+    setShowRescheduleDialog(true)
+  }
+
   const getAppointmentColor = (appointment: AppointmentData) => {
     if (appointment.status === 'cancelled') return 'bg-gray-100 text-gray-600 border-gray-300'
+    if (appointment.agendaId) {
+      const agenda = agendas.find(a => a.id === appointment.agendaId)
+      if (agenda) return 'border-l-4'
+    }
     if (appointment.type === 'telemedicine') return 'bg-green-50 text-green-700 border-green-200'
     return 'bg-blue-50 text-blue-700 border-blue-200'
   }
 
+  const getAgendaColor = (appointment: AppointmentData): string | undefined => {
+    if (appointment.agendaId) {
+      return agendas.find(a => a.id === appointment.agendaId)?.color
+    }
+    return undefined
+  }
+
+  // Helper: returns inline CSS for agenda-colored appointments, or null for defaults
+  const getAgendaCSSForAppointment = (appointment: AppointmentData): { borderLeftColor: string; backgroundColor: string } | null => {
+    const color = getAgendaColor(appointment)
+    if (!color) return null
+    return { borderLeftColor: color, backgroundColor: color + '1A' }
+  }
+
+  // Filter appointments by selected agendas
+  const agendaFilteredAppointments = useMemo(() => {
+    if (selectedAgendaIds.length === 0) return appointments
+    return appointments.filter(apt =>
+      apt.agendaId ? selectedAgendaIds.includes(apt.agendaId) : true
+    )
+  }, [appointments, selectedAgendaIds])
+
   // Filter appointments based on search and filters
   const filteredAppointments = useMemo(() => {
-    let filtered = appointments
+    let filtered = agendaFilteredAppointments
 
     // Exclude cancelled appointments by default unless toggle is enabled
     if (!showCancelledAppointments) {
-      filtered = filtered.filter(apt => apt.status !== 'cancelled' && apt.status !== 'no-show')
+      filtered = filtered.filter(apt => apt.status !== 'cancelled')
     }
 
     // Search filter
@@ -333,123 +479,135 @@ export default function AgendaPage() {
     }
 
     return filtered
-  }, [appointments, searchQuery, statusFilter, typeFilter, showCancelledAppointments])
+  }, [agendaFilteredAppointments, searchQuery, statusFilter, typeFilter, showCancelledAppointments])
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b bg-white">
-        <div className="flex items-center space-x-4">
-          <Button variant="outline" onClick={handleToday} className="text-sm">
-            Hoy
-          </Button>
-          <div className="flex items-center space-x-1">
-            <Button variant="ghost" size="sm" onClick={handlePreviousPeriod}>
+    <div className="h-screen w-full flex flex-col bg-gray-50 overflow-hidden">
+      {/* ── Top bar (Teams style) ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0 w-full">
+        {/* Left: Title and navigation */}
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-gray-900">Agenda</h1>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={handlePreviousPeriod} className="h-8 w-8 p-0 text-gray-600 hover:bg-gray-100">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleNextPeriod}>
+            <Button variant="ghost" size="sm" onClick={handleNextPeriod} className="h-8 w-8 p-0 text-gray-600 hover:bg-gray-100">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <h1 className="text-xl font-semibold text-gray-900 capitalize">
-            {getDateTitle()}
-          </h1>
+          <Button variant="ghost" size="sm" onClick={handleToday} className="text-sm font-medium text-gray-600 hover:bg-gray-100 px-3">
+            Hoy
+          </Button>
         </div>
 
-        <div className="flex items-center space-x-4">
+        {/* Right: controls (Teams style) */}
+        <div className="flex items-center gap-3">
           {/* View Mode Selector */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center border border-gray-300 rounded-md">
             {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
               <Button
                 key={mode}
-                variant={viewMode === mode ? "default" : "ghost"}
+                variant="ghost"
                 size="sm"
                 onClick={() => setViewMode(mode)}
                 className={cn(
-                  "text-sm",
-                  viewMode === mode ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                  'text-sm h-8 px-3 font-medium border-r border-gray-300 last:border-r-0 rounded-none first:rounded-l-md last:rounded-r-md',
+                  viewMode === mode
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'text-gray-700 hover:bg-gray-100'
                 )}
               >
-                {mode === 'day' && 'Día'}
-                {mode === 'week' && 'Semana'}
-                {mode === 'month' && 'Mes'}
+                {mode === 'day' ? 'Día' : mode === 'week' ? 'Semana' : 'Mes'}
               </Button>
             ))}
           </div>
 
-          {/* Show Cancelled Toggle */}
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="show-cancelled"
-              checked={showCancelledAppointments}
-              onCheckedChange={setShowCancelledAppointments}
-            />
-            <label
-              htmlFor="show-cancelled"
-              className="text-sm text-gray-600 cursor-pointer"
-            >
-              Mostrar canceladas
-            </label>
+          {/* Date display */}
+          <div className="text-lg font-medium text-gray-900">
+            {getDateTitle()}
           </div>
 
           {/* New Appointment Button */}
           <Button
-            onClick={() => {
-              setSelectedSlot({ date: new Date(), time: '09:00' })
-              setShowAppointmentDialog(true)
-            }}
-            className="flex items-center space-x-2"
+            size="sm"
+            onClick={() => { setSelectedSlot({ date: new Date(), time: '09:00' }); setShowAppointmentDialog(true) }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4"
           >
-            <Plus className="h-4 w-4" />
-            <span>Nueva Cita</span>
+            <Plus className="h-4 w-4 mr-1" />
+            Nuevo
           </Button>
         </div>
       </div>
 
-      {/* Calendar Content */}
-      <div className="flex-1 overflow-auto">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-gray-600">Cargando agenda...</p>
+      {/* ── Main area: left panel + calendar ─────────────────── */}
+      <div className="flex flex-1 overflow-hidden w-full min-h-0">
+        {/* Left panel */}
+        <AgendaLeftPanel
+          isSecretary={isSecretary}
+          doctors={doctors}
+          selectedDoctorIds={selectedDoctorIds}
+          onDoctorToggle={handleDoctorToggle}
+          onAllDoctors={() => setSelectedDoctorIds([])}
+          agendas={panelAgendas}
+          selectedAgendaIds={selectedAgendaIds}
+          onAgendaToggle={handleAgendaToggle}
+          onAllAgendas={() => setSelectedAgendaIds([])}
+          onCreateAgenda={() => { setEditingAgenda(null); setShowAgendaFormDialog(true) }}
+          onEditAgenda={(a) => { setEditingAgenda(a); setShowAgendaFormDialog(true) }}
+          onBlockAgenda={(a) => { setBlockTargetAgendaId(a.id); setBlockTargetAgendaName(a.name); setShowBlockDialog(true) }}
+          selectedDate={selectedDate}
+          onDateSelect={setSelectedDate}
+          appointments={appointments}
+        />
+
+        {/* Calendar (Teams style) */}
+        <div className="flex-1 overflow-auto bg-white min-w-0">
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" />
+                <p className="text-gray-600">Cargando agenda...</p>
+              </div>
             </div>
-          </div>
-        ) : viewMode === 'day' ? (
-          <DayView
-            date={selectedDate}
-            appointments={filteredAppointments}
-            doctorId={doctorId || ''}
-            organizationId={organizationId || ''}
-            onSlotClick={handleSlotClick}
-            onAppointmentClick={handleAppointmentClick}
-            getAppointmentColor={getAppointmentColor}
-          />
-        ) : viewMode === 'week' ? (
-          <WeekView
-            date={selectedDate}
-            appointments={filteredAppointments}
-            doctorId={doctorId || ''}
-            organizationId={organizationId || ''}
-            onSlotClick={handleSlotClick}
-            onAppointmentClick={handleAppointmentClick}
-            onDayClick={(date) => {
-              setSelectedDate(date)
-              setViewMode('day')
-            }}
-            getAppointmentColor={getAppointmentColor}
-          />
-        ) : (
-          <MonthView
-            date={selectedDate}
-            appointments={filteredAppointments}
-            onDayClick={(date) => {
-              setSelectedDate(date)
-              setViewMode('day')
-            }}
-            getAppointmentColor={getAppointmentColor}
-          />
-        )}
+          ) : viewMode === 'day' ? (
+            <DayView
+              date={selectedDate}
+              appointments={filteredAppointments}
+              blocks={blocks}
+              doctorId={selfDoctorId || ''}
+              organizationId={organizationId || ''}
+              visibleAgendas={visibleAgendas}
+              onSlotClick={handleSlotClick}
+              onAppointmentClick={handleAppointmentClick}
+              onReschedule={handleReschedule}
+              getAppointmentColor={getAppointmentColor}
+              getAgendaCSS={getAgendaCSSForAppointment}
+            />
+          ) : viewMode === 'week' ? (
+            <WeekView
+              date={selectedDate}
+              appointments={filteredAppointments}
+              blocks={blocks}
+              doctorId={selfDoctorId || ''}
+              organizationId={organizationId || ''}
+              visibleAgendas={visibleAgendas}
+              onSlotClick={handleSlotClick}
+              onAppointmentClick={handleAppointmentClick}
+              onReschedule={handleReschedule}
+              onDayClick={(date) => { setSelectedDate(date); setViewMode('day') }}
+              getAppointmentColor={getAppointmentColor}
+              getAgendaCSS={getAgendaCSSForAppointment}
+            />
+          ) : (
+            <MonthView
+              date={selectedDate}
+              appointments={filteredAppointments}
+              onDayClick={(date) => { setSelectedDate(date); setViewMode('day') }}
+              getAppointmentColor={getAppointmentColor}
+            />
+          )}
+        </div>
       </div>
 
       {/* Appointment Creation/Edit Dialog */}
@@ -461,12 +619,13 @@ export default function AgendaPage() {
             setSelectedSlot(null)
             setEditingAppointment(null)
           }}
-          doctorId={doctorId || ''}
+          doctorId={selfDoctorId || ''}
           organizationId={organizationId || ''}
           date={selectedSlot?.date || editingAppointment?.start}
           timeSlot={selectedSlot?.time}
           appointment={editingAppointment}
           appointmentRequest={assignmentData}
+          agendas={visibleAgendas}
         />
       )}
 
@@ -479,7 +638,140 @@ export default function AgendaPage() {
           setSelectedAppointment(null)
         }}
         onEdit={handleEditAppointment}
+        onStatusChanged={() => {
+          setShowAppointmentOptions(false)
+          setSelectedAppointment(null)
+        }}
       />
+
+      {/* Agenda Form Dialog */}
+      <AgendaFormDialog
+        open={showAgendaFormDialog}
+        onClose={() => { setShowAgendaFormDialog(false); setEditingAgenda(null) }}
+        organizationId={organizationId || ''}
+        doctorId={selfDoctorId || ''}
+        doctorName={userData?.displayName || userData?.email || ''}
+        editAgenda={editingAgenda}
+        onSaved={(agendaId) => {
+          // After creating/editing an agenda, ensure it will be visible
+          if (isSecretary && selectedDoctorIds.length > 0) {
+            // Clear doctor filters to show all agendas for secretaries
+            setSelectedDoctorIds([])
+          }
+
+          // Clear agenda filters to ensure the new agenda is included in the view
+          if (selectedAgendaIds.length > 0) {
+            setSelectedAgendaIds([])
+          }
+        }}
+        isSecretary={isSecretary}
+        doctors={isSecretary ? doctors : undefined}
+      />
+
+      {/* Block Schedule Dialog */}
+      {blockTargetAgendaId && (() => {
+        const targetAgenda = agendas.find(a => a.id === blockTargetAgendaId)
+        const doctorAgendaIds = targetAgenda
+          ? agendas.filter(a => a.doctorId === targetAgenda.doctorId && a.enabled).map(a => a.id)
+          : []
+        const doctorName = targetAgenda
+          ? (doctors.find(d => d.uid === targetAgenda.doctorId)?.displayName || '')
+          : ''
+        return (
+          <BlockScheduleDialog
+            open={showBlockDialog}
+            onClose={() => { setShowBlockDialog(false); setBlockTargetAgendaId(''); setBlockTargetAgendaName('') }}
+            organizationId={organizationId || ''}
+            agendaId={blockTargetAgendaId}
+            agendaName={blockTargetAgendaName}
+            userId={user?.uid || userData?.uid || ''}
+            initialDate={selectedDate}
+            doctorAgendaIds={doctorAgendaIds}
+            doctorName={doctorName}
+          />
+        )
+      })()}
+
+      {/* Reschedule Dialog */}
+      {rescheduleTarget && (
+        <RescheduleDialog
+          open={showRescheduleDialog}
+          onClose={() => { setShowRescheduleDialog(false); setRescheduleTarget(null) }}
+          appointment={rescheduleTarget.appointment as unknown as ServiceAppointmentData}
+          newDate={rescheduleTarget.newDate}
+          newTime={rescheduleTarget.newTime}
+          organizationId={organizationId || ''}
+          userId={user?.uid || userData?.uid || ''}
+          userRole={userData?.role === 'doctor' ? 'doctor' : 'secretary'}
+          onRescheduled={() => { setShowRescheduleDialog(false); setRescheduleTarget(null) }}
+          isSecretary={isSecretary}
+          doctors={isSecretary ? doctors : undefined}
+          agendas={isSecretary ? agendas : undefined}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Block helpers ────────────────────────────────────────────
+
+function isBlockForDay(block: ScheduleBlock, date: Date): boolean {
+  const d = new Date(date); d.setHours(12, 0, 0, 0)
+  switch (block.type) {
+    case 'date-range':
+    case 'hours': {
+      if (!block.startDate || !block.endDate) return false
+      const s = new Date(block.startDate); s.setHours(0, 0, 0, 0)
+      const e = new Date(block.endDate); e.setHours(23, 59, 59, 999)
+      return d >= s && d <= e
+    }
+    case 'day':
+    case 'recurring':
+      return block.dayOfWeek !== undefined && date.getDay() === block.dayOfWeek
+    default:
+      return false
+  }
+}
+
+function getBlockOverlayStyle(block: ScheduleBlock): { top: number; height: number } | null {
+  // date-range with no times = full day block
+  if (block.type === 'date-range' && !block.startTime && !block.endTime) {
+    return { top: 16, height: 20 * 60 } // full visible area (8AM-6PM = 20 slots × 60px)
+  }
+  const startTime = block.startTime || '08:00'
+  const endTime = block.endTime || '18:00'
+  const [sh, sm] = startTime.split(':').map(Number)
+  const [eh, em] = endTime.split(':').map(Number)
+  const startMin = sh * 60 + sm
+  const endMin = eh * 60 + em
+  const firstSlotMin = 8 * 60
+  const slotH = 60
+  const slotD = 30
+  const top = (startMin - firstSlotMin) / slotD * slotH + 16
+  const height = (endMin - startMin) / slotD * slotH
+  if (height <= 0) return null
+  return { top: Math.max(16, top), height }
+}
+
+function BlockOverlay({ block }: { block: ScheduleBlock }) {
+  const style = getBlockOverlayStyle(block)
+  if (!style) return null
+  return (
+    <div
+      className="absolute left-0 right-0 z-10 pointer-events-none"
+      style={{ top: style.top, height: style.height }}
+    >
+      <div
+        className="w-full h-full border border-gray-300/60 flex items-start"
+        style={{
+          backgroundColor: 'rgba(156,163,175,0.25)',
+          backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(0,0,0,0.06) 6px, rgba(0,0,0,0.06) 8px)',
+        }}
+      >
+        <span className="text-[10px] text-gray-500 px-1.5 py-0.5 flex items-center gap-0.5 select-none">
+          🔒 {block.reason || 'Bloqueado'}
+        </span>
+      </div>
     </div>
   )
 }
@@ -488,28 +780,95 @@ export default function AgendaPage() {
 interface DayViewProps {
   date: Date
   appointments: AppointmentData[]
+  blocks?: ScheduleBlock[]
   doctorId: string
   organizationId: string
+  visibleAgendas: any[]  // Add visibleAgendas parameter
   onSlotClick: (date: Date, time: string) => void
   onAppointmentClick: (appointment: AppointmentData) => void
+  onReschedule?: (appointment: AppointmentData, newDate: Date, newTime: string) => void
   getAppointmentColor: (appointment: AppointmentData) => string
+  getAgendaCSS?: (appointment: AppointmentData) => { borderLeftColor: string; backgroundColor: string } | null
 }
 
 function DayView({
   date,
   appointments,
+  blocks = [],
   doctorId,
   organizationId,
+  visibleAgendas,
   onSlotClick,
   onAppointmentClick,
-  getAppointmentColor
+  onReschedule,
+  getAppointmentColor,
+  getAgendaCSS
 }: DayViewProps) {
-  // Generate time slots from 8 AM to 6 PM
-  const timeSlots = Array.from({ length: 20 }, (_, i) => {
-    const hour = Math.floor(i / 2) + 8
-    const minutes = (i % 2) * 30
-    return `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
-  })
+  const calendarGridRef = useRef<HTMLDivElement>(null)
+
+  // Generate time slots from 12 AM to 11 PM with agenda availability info
+  const { timeSlots, optimalSlotDuration, agendaScheduleRanges } = useMemo(() => {
+    // Calculate optimal slot duration based on all agendas
+    const slotDurations = visibleAgendas
+      .filter(agenda => agenda.enabled && agenda.slotDuration)
+      .map(agenda => agenda.slotDuration)
+
+    const optimalSlotDuration = slotDurations.length > 0
+      ? slotDurations.reduce((a, b) => gcd(a, b))
+      : 30
+
+    // Ensure minimum 15 minutes and maximum 60 minutes for better Teams-like display
+    const finalSlotDuration = Math.max(15, Math.min(60, optimalSlotDuration))
+
+    // Get day name from date
+    const dayOfWeek = date.getDay()
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = dayNames[dayOfWeek]
+
+    // Collect all agenda schedule ranges for this day
+    const agendaRanges: Array<{ start: number; end: number }> = []
+
+    visibleAgendas.forEach(agenda => {
+      if (!agenda.enabled || !agenda.schedule?.[dayName]?.enabled) return
+
+      const daySchedule = agenda.schedule[dayName]
+      const [startHour, startMinute] = daySchedule.start.split(':').map(Number)
+      const [endHour, endMinute] = daySchedule.end.split(':').map(Number)
+
+      agendaRanges.push({
+        start: startHour * 60 + startMinute,
+        end: endHour * 60 + endMinute
+      })
+    })
+
+    // Generate ALL time slots from 12 AM (00:00) to 11 PM (23:00)
+    const slots: string[] = []
+    const startTime = 0 // 12 AM = 0 minutes
+    const endTime = 23 * 60 // 11 PM = 23:00
+
+    for (let time = startTime; time <= endTime; time += finalSlotDuration) {
+      const hour = Math.floor(time / 60)
+      const minutes = time % 60
+      const timeString = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+      slots.push(timeString)
+    }
+
+    return {
+      timeSlots: slots,
+      optimalSlotDuration: finalSlotDuration,
+      agendaScheduleRanges: agendaRanges
+    }
+  }, [visibleAgendas, date])
+
+  // Helper function to check if a time slot is within any agenda schedule
+  const isSlotAvailable = (timeSlot: string): boolean => {
+    const [hour, minute] = timeSlot.split(':').map(Number)
+    const timeInMinutes = hour * 60 + minute
+
+    return agendaScheduleRanges.some(range =>
+      timeInMinutes >= range.start && timeInMinutes < range.end
+    )
+  }
 
   const dayAppointments = appointments.filter(apt => isSameDay(new Date(apt.start), date))
 
@@ -519,146 +878,333 @@ function DayView({
     const currentHour = now.getHours()
     const currentMinute = now.getMinutes()
 
-    // Calculate position relative to 8 AM start time
-    const startHour = 8
-    const minutesFromStart = (currentHour - startHour) * 60 + currentMinute
-    const slotsFromStart = minutesFromStart / 30 // 30-minute slots
+    // Calculate position relative to 12 AM start time
+    const minutesFromMidnight = currentHour * 60 + currentMinute
+    const slotsFromStart = minutesFromMidnight / optimalSlotDuration
 
     return slotsFromStart * 60 // 60px per slot
   }
 
+  // Auto-scroll to current time (Teams behavior)
+  useEffect(() => {
+    if (calendarGridRef.current && isToday(date) && timeSlots.length > 0) {
+      const scrollToCurrentTime = () => {
+        const now = new Date()
+        const currentHour = now.getHours()
+        const currentMinute = now.getMinutes()
+
+        // Calculate position to scroll to (Teams-style: show current time with context above)
+        const minutesFromMidnight = currentHour * 60 + currentMinute
+        const slotsFromStart = minutesFromMidnight / optimalSlotDuration
+
+        // Show 2 hours of context above the current time (like Teams does)
+        const contextMinutes = 2 * 60 // 2 hours
+        const contextSlots = contextMinutes / optimalSlotDuration
+        const scrollPosition = Math.max(0, (slotsFromStart - contextSlots) * 60)
+
+        calendarGridRef.current?.scrollTo({
+          top: scrollPosition,
+          behavior: 'smooth'
+        })
+      }
+
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(scrollToCurrentTime, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [date, optimalSlotDuration, timeSlots.length]) // Re-run when date, slot duration, or timeSlots change
+
   return (
-    <div className="flex h-full">
-      {/* Time labels */}
-      <div className="w-16 flex-shrink-0 border-r bg-white pt-4">
-        {timeSlots.map((slot, index) => {
-          const [hour, minute] = slot.split(':').map(Number)
-          const showHourLabel = minute === 0
+    <div className="h-full bg-white w-full">
+      {/* Single scrollable container for both time labels and calendar */}
+      <div ref={calendarGridRef} className="h-full overflow-auto">
+        <div className="flex min-h-full">
+          {/* Time labels (Teams style) */}
+          <div className="w-20 flex-shrink-0 border-r border-gray-200 bg-gray-50">
+            {timeSlots.map((slot, index) => {
+              const [hour, minute] = slot.split(':').map(Number)
+              const showHourLabel = minute === 0
+
+              return (
+                <div
+                  key={slot}
+                  className="relative h-[60px] border-b border-gray-100"
+                >
+                  {showHourLabel && (
+                    <div className="absolute -top-2 right-2 text-xs text-gray-600 font-medium">
+                      {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Calendar grid (Teams style) */}
+          <div className="flex-1 relative min-w-0">
+        {timeSlots.map((slot) => {
+          const isInSchedule = isSlotAvailable(slot)
 
           return (
             <div
               key={slot}
-              className="relative border-b bg-white h-[60px] border-gray-200"
-            >
-              {showHourLabel && (
-                <div className="absolute top-0 w-full text-center text-xs text-gray-500 mt-1">
-                  {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
-                </div>
+              className={cn(
+                "border-b border-gray-100 relative h-[60px] transition-colors cursor-pointer",
+                isInSchedule
+                  ? "bg-white hover:bg-blue-50"
+                  : "bg-gray-50 hover:bg-gray-100"
               )}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.currentTarget.classList.remove('bg-blue-100')
+                try {
+                  const data = JSON.parse(e.dataTransfer.getData('application/json'))
+                  if (data.appointmentId && onReschedule) {
+                    const apt = appointments.find(a => a.id === data.appointmentId)
+                    if (apt) onReschedule(apt, date, slot)
+                  }
+                } catch { /* ignore */ }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.currentTarget.classList.add('bg-blue-100')
+              }}
+              onDragLeave={(e) => {
+                e.currentTarget.classList.remove('bg-blue-100')
+              }}
+            >
+              <button
+                className="w-full h-full cursor-pointer flex items-center justify-center"
+                onClick={() => onSlotClick(date, slot)}
+                title={isInSchedule ? "Horario de agenda" : "Fuera de horario de agenda"}
+              >
+                {!isInSchedule && (
+                  <span className="text-xs text-gray-500 select-none opacity-50">
+                    Fuera de horario
+                  </span>
+                )}
+              </button>
             </div>
           )
         })}
-      </div>
 
-      {/* Calendar grid */}
-      <div className="flex-1 relative pt-4">
-        {timeSlots.map((slot) => (
-          <div
-            key={slot}
-            className="border-b relative bg-white h-[60px] border-gray-200 hover:bg-blue-50/50 transition-colors"
-            onDrop={(e) => {
-              e.preventDefault()
-              try {
-                const data = JSON.parse(e.dataTransfer.getData('application/json'))
-                if (data.appointmentId) {
-                  console.log(`Moving appointment ${data.appointmentId} from ${data.originalTime} to ${slot}`)
-                  // TODO: Implement appointment rescheduling logic here
-                  // This would typically call an API to update the appointment time
-                }
-              } catch (error) {
-                console.error('Error handling drop:', error)
-              }
-            }}
-            onDragOver={(e) => {
-              e.preventDefault()
-              e.currentTarget.classList.add('bg-blue-100')
-            }}
-            onDragLeave={(e) => {
-              e.currentTarget.classList.remove('bg-blue-100')
-            }}
-          >
-            <button
-              className="w-full h-full cursor-pointer transition-colors"
-              onClick={() => onSlotClick(date, slot)}
-            />
-          </div>
+        {/* Block overlays */}
+        {blocks.filter(b => isBlockForDay(b, date)).map(block => (
+          <BlockOverlay key={block.id} block={block} />
         ))}
 
-        {/* Current time indicator */}
+        {/* Current time indicator (Teams style) */}
         {isToday(date) && (
           <div
-            className="absolute left-0 right-0 h-0.5 bg-blue-500 z-20"
+            className="absolute left-0 right-0 h-0.5 bg-blue-600 z-20"
             style={{
-              top: `${getCurrentTimePosition() + 16}px`, // +16 for the padding top
+              top: `${getCurrentTimePosition()}px`,
             }}
           >
-            <div className="w-2 h-2 bg-blue-500 rounded-full -ml-1 -mt-1" />
+            <div className="w-2 h-2 bg-blue-600 rounded-full -ml-1 -mt-1" />
           </div>
         )}
 
-        {/* Appointments */}
-        {dayAppointments.map((appointment) => {
-          const startTime = new Date(appointment.start)
-          const startSlot = (startTime.getHours() - 8) * 2 + (startTime.getMinutes() >= 30 ? 1 : 0)
-          const top = startSlot * 60
+        {/* Appointments with overlap detection */}
+        {(() => {
+          // Calculate layout for overlapping appointments (same logic as WeekView)
+          const calculateAppointmentLayout = (
+            appointments: AppointmentData[],
+            timeSlots: string[],
+            slotDuration: number,
+            slotHeight: number
+          ): Array<{
+            appointment: AppointmentData
+            position: { top: number; height: number } | null
+            layout: { left: number; width: number }
+          }> => {
+            if (appointments.length === 0) return []
 
-          // Check if appointment is in the past (including current time)
-          const now = new Date()
-          const isPastAppointment = new Date(appointment.end) <= now
-          const isCancelledOrNoShow = appointment.status === 'cancelled' || appointment.status === 'no-show'
+            // Calculate position for each appointment
+            const appointmentsWithPosition = appointments.map(appointment => {
+              const startTime = new Date(appointment.start)
+              const endTime = new Date(appointment.end)
+              const startHour = startTime.getHours()
+              const startMinute = startTime.getMinutes()
+              const endHour = endTime.getHours()
+              const endMinute = endTime.getMinutes()
 
-          // Determine if appointment can be interacted with (edited, cancelled, dragged)
-          const isInteractive = !isPastAppointment && !isCancelledOrNoShow
+              const startTimeInMinutes = startHour * 60 + startMinute
+              const endTimeInMinutes = endHour * 60 + endMinute
 
-          return (
-            <div
-              key={appointment.id}
-              className={cn(
-                "absolute left-2 right-2 rounded p-2 z-10 text-left transition-all duration-200",
-                // Different styles based on appointment status
-                isInteractive
-                  ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]"
-                  : "cursor-default opacity-70",
-                // Color scheme based on appointment type and status
-                appointment.type === 'telemedicine'
-                  ? isPastAppointment
-                    ? "bg-green-100 border-l-4 border-green-400 text-green-700"
-                    : isCancelledOrNoShow
-                    ? "bg-gray-100 border-l-4 border-gray-400 text-gray-600"
-                    : "bg-green-50 border-l-4 border-green-500 text-green-700"
-                  : isPastAppointment
-                    ? "bg-blue-100 border-l-4 border-blue-400 text-blue-700"
-                    : isCancelledOrNoShow
-                    ? "bg-gray-100 border-l-4 border-gray-400 text-gray-600"
-                    : "bg-blue-50 border-l-4 border-blue-500 text-blue-700"
-              )}
-              style={{ top: `${top + 16}px`, height: '58px' }}
-              onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
-              draggable={isInteractive}
-              onDragStart={(e) => {
-                if (!isInteractive) {
-                  e.preventDefault()
-                  return
+              // Calculate position based on 12 AM start time
+              const startMinutesFromMidnight = startTimeInMinutes
+              const endMinutesFromMidnight = endTimeInMinutes
+
+              const startSlotsFromBegin = startMinutesFromMidnight / slotDuration
+              const endSlotsFromBegin = endMinutesFromMidnight / slotDuration
+
+              const top = Math.max(0, startSlotsFromBegin * slotHeight)
+              const height = Math.max(slotHeight * 0.8, (endSlotsFromBegin - startSlotsFromBegin) * slotHeight)
+
+              return {
+                appointment,
+                position: { top, height },
+                startTime: startTime.getTime(),
+                endTime: endTime.getTime()
+              }
+            }).filter(apt => apt.position !== null)
+
+            // Sort by start time for proper layout calculation
+            appointmentsWithPosition.sort((a, b) => a.startTime - b.startTime)
+
+            // Detect overlapping appointments and assign columns
+            const columns: Array<{
+              appointments: typeof appointmentsWithPosition[0][]
+              endTime: number
+            }> = []
+
+            appointmentsWithPosition.forEach(apt => {
+              // Find the first available column (one that doesn't overlap with this appointment)
+              let assignedColumn = -1
+              for (let i = 0; i < columns.length; i++) {
+                if (columns[i].endTime <= apt.startTime) {
+                  assignedColumn = i
+                  break
                 }
-                e.dataTransfer.setData('application/json', JSON.stringify({
-                  appointmentId: appointment.id,
-                  originalTime: format(startTime, 'HH:mm')
-                }))
-              }}
-            >
-              <div className="text-xs font-semibold">
-                {format(startTime, 'HH:mm')} - {appointment.patientName}
-              </div>
-              <div className="text-xs truncate flex items-center">
-                {appointment.type === 'telemedicine' && (
-                  <Video className="h-3 w-3 mr-1" />
+              }
+
+              // If no available column, create a new one
+              if (assignedColumn === -1) {
+                assignedColumn = columns.length
+                columns.push({
+                  appointments: [],
+                  endTime: apt.endTime
+                })
+              }
+
+              // Assign appointment to column and update end time
+              columns[assignedColumn].appointments.push(apt)
+              columns[assignedColumn].endTime = Math.max(columns[assignedColumn].endTime, apt.endTime)
+            })
+
+            // Calculate layout dimensions
+            const totalColumns = columns.length
+            let columnWidth: number
+            let columnSpacing: number
+
+            if (totalColumns === 1) {
+              // Single appointment gets almost full width
+              columnWidth = 95
+              columnSpacing = 0
+            } else {
+              // Multiple appointments need to share space
+              const availableWidth = 92
+              const totalGap = (totalColumns - 1) * 2 // 2% gap between columns
+              columnWidth = (availableWidth - totalGap) / totalColumns
+              columnSpacing = 2
+            }
+
+            // Assign layout to each appointment
+            const result: Array<{
+              appointment: AppointmentData
+              position: { top: number; height: number } | null
+              layout: { left: number; width: number }
+            }> = []
+
+            columns.forEach((column, columnIndex) => {
+              column.appointments.forEach(apt => {
+                // Calculate left position as percentage
+                const leftMargin = totalColumns === 1 ? 2 : 4 // More margin for multiple appointments
+                const leftPercentage = leftMargin + (columnIndex * (columnWidth + columnSpacing))
+
+                // Ensure the appointment doesn't exceed the container width
+                const maxLeft = 96 - columnWidth
+                const finalLeft = Math.min(leftPercentage, maxLeft)
+                const finalWidth = Math.min(columnWidth, 96 - finalLeft)
+
+                result.push({
+                  appointment: apt.appointment,
+                  position: apt.position,
+                  layout: {
+                    left: finalLeft,
+                    width: finalWidth
+                  }
+                })
+              })
+            })
+
+            return result
+          }
+
+          // Calculate layout for all appointments
+          const appointmentLayout = calculateAppointmentLayout(dayAppointments, timeSlots, optimalSlotDuration, 60)
+
+          return appointmentLayout.map(({ appointment, position, layout }) => {
+            if (!position) return null
+
+            const startTime = new Date(appointment.start)
+
+            // Check if appointment is in the past (including current time)
+            const now = new Date()
+            const isPastAppointment = new Date(appointment.end) <= now
+            const isCancelled = appointment.status === 'cancelled'
+
+            const isInteractive = !isPastAppointment && !isCancelled
+            const agendaCSS = (!isPastAppointment && !isCancelled) ? getAgendaCSS?.(appointment) : null
+
+            return (
+              <div
+                key={appointment.id}
+                className={cn(
+                  "absolute rounded-md p-3 z-10 text-left transition-all duration-200 border-l-4",
+                  // Teams-style clean appearance
+                  isInteractive
+                    ? "cursor-pointer hover:shadow-md hover:scale-[1.02]"
+                    : "cursor-default opacity-70",
+                  // Simplified color scheme like Teams
+                  agendaCSS
+                    ? "text-gray-800 shadow-sm"
+                    : isCancelled
+                      ? "bg-gray-100 border-gray-400 text-gray-600"
+                      : appointment.type === 'telemedicine'
+                        ? "bg-green-100 border-green-500 text-green-800"
+                        : "bg-blue-100 border-blue-500 text-blue-800"
                 )}
-                {isCancelledOrNoShow && <span className="text-xs mr-1">[Cancelada]</span>}
-                {appointment.reason || 'Consulta general'}
+                style={{
+                  top: `${position.top}px`,
+                  height: `${position.height}px`,
+                  left: `${layout.left}%`,
+                  width: `${layout.width}%`,
+                  ...(agendaCSS ? {
+                    borderLeftColor: agendaCSS.borderLeftColor,
+                    backgroundColor: agendaCSS.backgroundColor + '20'
+                  } : {}),
+                }}
+                onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
+                draggable={isInteractive}
+                onDragStart={(e) => {
+                  if (!isInteractive) {
+                    e.preventDefault()
+                    return
+                  }
+                  e.dataTransfer.setData('application/json', JSON.stringify({
+                    appointmentId: appointment.id,
+                    originalTime: format(startTime, 'HH:mm')
+                  }))
+                }}
+              >
+                <div className="font-semibold text-sm mb-1">
+                  {appointment.patientName}
+                </div>
+                <div className="text-xs text-gray-600 flex items-center">
+                  {appointment.type === 'telemedicine' && (
+                    <Video className="h-3 w-3 mr-1" />
+                  )}
+                  {isCancelled && <span className="mr-1">[Cancelada]</span>}
+                  {appointment.reason || 'Consulta general'}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })
+        })()}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -668,29 +1214,38 @@ function DayView({
 interface WeekViewProps {
   date: Date
   appointments: AppointmentData[]
+  blocks?: ScheduleBlock[]
   doctorId: string
   organizationId: string
+  visibleAgendas: any[]  // Add visibleAgendas parameter
   onSlotClick: (date: Date, time: string) => void
   onAppointmentClick: (appointment: AppointmentData) => void
+  onReschedule?: (appointment: AppointmentData, newDate: Date, newTime: string) => void
   onDayClick: (date: Date) => void
   getAppointmentColor: (appointment: AppointmentData) => string
+  getAgendaCSS?: (appointment: AppointmentData) => { borderLeftColor: string; backgroundColor: string } | null
 }
 
 function WeekView({
   date,
   appointments,
+  blocks = [],
   doctorId,
   organizationId,
+  visibleAgendas,
   onSlotClick,
   onAppointmentClick,
+  onReschedule,
   onDayClick,
-  getAppointmentColor
+  getAppointmentColor,
+  getAgendaCSS
 }: WeekViewProps) {
+  const weekCalendarRef = useRef<HTMLDivElement>(null)
   const weekStart = startOfWeek(date, { weekStartsOn: 1 })
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
-  // Get all time slots for the week using the hook
-  const { timeSlots, daySchedules, loading, error } = useWeekTimeSlots(doctorId, organizationId, weekStart)
+  // Get all time slots for the week using the hook, now using actual agendas
+  const { timeSlots, daySchedules, loading, error } = useWeekTimeSlots(doctorId, organizationId, weekStart, visibleAgendas)
 
   // Helper function to calculate current time position in the schedule
   const getCurrentTimePosition = (timeSlots: string[], slotDuration: number, slotHeight: number): number => {
@@ -864,6 +1419,45 @@ function WeekView({
     return result
   }
 
+  // Auto-scroll to current time for current week (Teams behavior)
+  useEffect(() => {
+    if (weekCalendarRef.current && timeSlots.length > 0) {
+      // Check if we're viewing the current week
+      const today = new Date()
+      const isCurrentWeek = weekDays.some(day => isSameDay(day, today))
+
+      if (isCurrentWeek) {
+        const scrollToCurrentTime = () => {
+          const now = new Date()
+          const currentHour = now.getHours()
+          const currentMinute = now.getMinutes()
+
+          // Calculate position to scroll to (Teams-style: show current time with context above)
+          const minutesFromMidnight = currentHour * 60 + currentMinute
+
+          // Use 30-minute slots as default for week view
+          const slotDuration = 30
+          const slotHeight = 60
+          const slotsFromStart = minutesFromMidnight / slotDuration
+
+          // Show 2 hours of context above the current time (like Teams does)
+          const contextMinutes = 2 * 60 // 2 hours
+          const contextSlots = contextMinutes / slotDuration
+          const scrollPosition = Math.max(0, (slotsFromStart - contextSlots) * slotHeight)
+
+          weekCalendarRef.current?.scrollTo({
+            top: scrollPosition,
+            behavior: 'smooth'
+          })
+        }
+
+        // Small delay to ensure DOM is ready
+        const timer = setTimeout(scrollToCurrentTime, 100)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [date, timeSlots, weekDays]) // Re-run when date, timeSlots, or weekDays change
+
   // Show loading state
   if (loading) {
     return (
@@ -946,52 +1540,53 @@ function WeekView({
       </div>
 
       {/* Week grid */}
-      <div className="flex-1 flex overflow-auto min-h-0">
-        {/* Time labels */}
-        <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-white">
-          {timeSlots.map((timeSlot, index) => {
-            const [hour, minute] = timeSlot.split(':').map(Number)
-            const showLabel = minute === 0
+      <div ref={weekCalendarRef} className="flex-1 overflow-auto min-h-0">
+        <div className="flex min-h-full">
+          {/* Time labels */}
+          <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-white">
+            {timeSlots.map((timeSlot, index) => {
+              const [hour, minute] = timeSlot.split(':').map(Number)
+              const showLabel = minute === 0
 
-            // Check if the NEXT slot starts a new hour (for bottom border)
-            const nextSlotIndex = index + 1
-            const isLastSlot = nextSlotIndex >= timeSlots.length
-            let nextSlotStartsNewHour = false
+              // Check if the NEXT slot starts a new hour (for bottom border)
+              const nextSlotIndex = index + 1
+              const isLastSlot = nextSlotIndex >= timeSlots.length
+              let nextSlotStartsNewHour = false
 
-            if (!isLastSlot) {
-              const [nextHour, nextMinute] = timeSlots[nextSlotIndex].split(':').map(Number)
-              nextSlotStartsNewHour = nextMinute === 0
-            }
+              if (!isLastSlot) {
+                const [nextHour, nextMinute] = timeSlots[nextSlotIndex].split(':').map(Number)
+                nextSlotStartsNewHour = nextMinute === 0
+              }
 
-            return (
-              <div
-                key={timeSlot}
-                className={cn(
-                  "relative border-b bg-white",
-                  nextSlotStartsNewHour || isLastSlot ? "border-gray-300 border-solid" : "border-gray-200 border-dashed"
-                )}
-                style={{ height: `${slotHeight}px` }}
-              >
-                {showLabel && (
-                  <div
-                    className="absolute top-0 w-full text-center"
-                    style={{
-                      color: 'var(--neutralPrimaryAlt)',
-                      fontSize: '12px',
-                      fontWeight: 400,
-                      marginTop: '3px'
-                    }}
-                  >
-                    {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+              return (
+                <div
+                  key={timeSlot}
+                  className={cn(
+                    "relative border-b bg-white",
+                    nextSlotStartsNewHour || isLastSlot ? "border-gray-300 border-solid" : "border-gray-200 border-dashed"
+                  )}
+                  style={{ height: `${slotHeight}px` }}
+                >
+                  {showLabel && (
+                    <div
+                      className="absolute top-0 w-full text-center"
+                      style={{
+                        color: 'var(--neutralPrimaryAlt)',
+                        fontSize: '12px',
+                        fontWeight: 400,
+                        marginTop: '3px'
+                      }}
+                    >
+                      {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
-        {/* Days columns */}
-        <div className="flex flex-1 min-w-0">
+          {/* Days columns */}
+          <div className="flex flex-1 min-w-0">
           {weekDays.map((day) => {
             const daySchedule = getDayScheduleFromWeek(daySchedules, day)
             const dayAppointments = appointments.filter(apt => isSameDay(new Date(apt.start), day))
@@ -1028,21 +1623,51 @@ function WeekView({
                         <div
                           key={timeSlot}
                           className={cn(
-                            "border-b relative bg-white",
+                            "border-b relative cursor-pointer",
                             nextTimeSlotStartsNewHour || isLastTimeSlot ? "border-gray-300 border-solid" : "border-gray-200 border-dashed",
-                            isAvailable ? "hover:bg-blue-50/50 transition-colors" : "bg-gray-50"
+                            isAvailable
+                              ? "bg-white hover:bg-blue-50/50 transition-colors"
+                              : "bg-gray-50 hover:bg-gray-100 transition-colors"
                           )}
                           style={{ height: `${slotHeight}px` }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            e.currentTarget.classList.remove('bg-blue-100')
+                            try {
+                              const data = JSON.parse(e.dataTransfer.getData('application/json'))
+                              if (data.appointmentId && onReschedule) {
+                                const apt = appointments.find(a => a.id === data.appointmentId)
+                                if (apt) onReschedule(apt, day, timeSlot)
+                              }
+                            } catch { /* ignore */ }
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            e.currentTarget.classList.add('bg-blue-100')
+                          }}
+                          onDragLeave={(e) => {
+                            e.currentTarget.classList.remove('bg-blue-100')
+                          }}
                         >
-                          {isAvailable && (
-                            <button
-                              className="w-full h-full cursor-pointer transition-colors"
-                              onClick={() => onSlotClick(day, timeSlot)}
-                            />
-                          )}
+                          <button
+                            className="w-full h-full cursor-pointer transition-colors flex items-center justify-center"
+                            onClick={() => onSlotClick(day, timeSlot)}
+                            title={isAvailable ? "Horario de agenda" : "Fuera de horario de agenda"}
+                          >
+                            {!isAvailable && (
+                              <span className="text-xs text-gray-400 select-none opacity-40">
+                                Fuera de horario
+                              </span>
+                            )}
+                          </button>
                         </div>
                       )
                     })}
+
+                    {/* Block overlays */}
+                    {blocks.filter(b => isBlockForDay(b, day)).map(block => (
+                      <BlockOverlay key={block.id} block={block} />
+                    ))}
 
                     {/* Current time indicator - Outlook style blue line */}
                     {isToday(day) && daySchedule && (
@@ -1070,9 +1695,11 @@ function WeekView({
                         const now = new Date()
                         const endTime = new Date(appointment.end)
                         const isPastAppointment = endTime <= now
-                        const isCancelledOrNoShow = appointment.status === 'cancelled' || appointment.status === 'no-show'
+                        const isCancelled = appointment.status === 'cancelled'
                         // Determine if appointment can be interacted with (edited, cancelled, dragged)
-                        const isInteractive = !isPastAppointment && !isCancelledOrNoShow
+                        const isInteractive = !isPastAppointment && !isCancelled
+
+                        const agendaCSS = (!isPastAppointment && !isCancelled) ? getAgendaCSS?.(appointment) : null
 
                         return (
                           <button
@@ -1090,39 +1717,53 @@ function WeekView({
                               left: `${layout.left}%`,
                               width: `${layout.width}%`,
                               // Microsoft Outlook-style design with different states
-                              background: isPastAppointment && !isCancelledOrNoShow
-                                ? '#f8f9fa' // Very light gray for past appointments
-                                : isCancelledOrNoShow
-                                ? '#f5f5f5' // Light gray background for cancelled
-                                : '#e8f4fd', // Light blue background like Outlook for active
-                              borderRadius: '4px',
-                              border: isPastAppointment && !isCancelledOrNoShow
-                                ? '1px solid #e9ecef' // Very light border for past
-                                : isCancelledOrNoShow
-                                ? '1px solid #d1d5db' // Light gray border for cancelled
-                                : '1px solid #bfdbfe', // Light blue border for active
+                              background: agendaCSS
+                                ? agendaCSS.backgroundColor
+                                : isPastAppointment && !isCancelled
+                                  ? '#f1f5f9' // Very light gray for past appointments
+                                  : isCancelled
+                                    ? '#f8fafc' // Light gray background for cancelled
+                                    : '#eff6ff', // Light blue background like Outlook for active
+                              borderRadius: '8px',
+                              border: isPastAppointment && !isCancelled
+                                ? '1px solid #e2e8f0' // Very light border for past
+                                : isCancelled
+                                  ? '1px solid #cbd5e1' // Light gray border for cancelled
+                                  : agendaCSS
+                                    ? `1px solid ${agendaCSS.borderLeftColor}40`
+                                    : '1px solid #bfdbfe', // Light blue border for active
                               borderLeftWidth: '3px', // Thin accent border
-                              borderLeftColor: isPastAppointment && !isCancelledOrNoShow
-                                ? '#adb5bd' // Muted gray for past appointments
-                                : isCancelledOrNoShow
-                                ? '#9ca3af' // Gray accent for cancelled
-                                : '#1d4ed8', // Dark blue accent like Outlook for active
+                              borderLeftColor: agendaCSS
+                                ? agendaCSS.borderLeftColor
+                                : isPastAppointment && !isCancelled
+                                  ? '#94a3b8' // Muted gray for past appointments
+                                  : isCancelled
+                                    ? '#cbd5e1' // Gray accent for cancelled
+                                    : '#3b82f6', // Dark blue accent like Outlook for active
                               borderLeftStyle: 'solid',
                               // Shadow and hover effects
                               boxShadow: isPastAppointment
-                                ? '0 1px 2px rgba(0, 0, 0, 0.05)' // Minimal shadow for past appointments
-                                : isCancelledOrNoShow
-                                ? '0 1px 3px rgba(0, 0, 0, 0.08)'
-                                : '0 2px 4px rgba(25, 118, 210, 0.08), 0 1px 2px rgba(25, 118, 210, 0.06)',
+                                ? '0 1px 2px rgba(0, 0, 0, 0.02)' // Minimal shadow for past appointments
+                                : isCancelled
+                                  ? '0 1px 2px rgba(0, 0, 0, 0.04)'
+                                  : '0 4px 12px rgba(59, 130, 246, 0.08), 0 2px 4px rgba(59, 130, 246, 0.04)',
                               // Typography and spacing - Outlook-style padding
-                              padding: '6px 8px', // Balanced padding for content visibility
+                              padding: '8px 10px', // Balanced padding for content visibility
                               fontSize: '11px', // Optimized for readability in small spaces
-                              fontWeight: '500', // Medium weight for better readability
-                              lineHeight: '1.3', // Compact line height to fit more content
+                              fontWeight: '600', // Medium weight for better readability
+                              lineHeight: '1.4', // Compact line height to fit more content
                               overflow: 'hidden',
-                              opacity: isPastAppointment ? 0.7 : isCancelledOrNoShow ? 0.85 : 1,
+                              backdropFilter: 'blur(8px)',
+                              opacity: isPastAppointment ? 0.75 : isCancelled ? 0.8 : 1,
                             }}
                             onClick={isInteractive ? () => onAppointmentClick(appointment) : undefined}
+                            draggable={isInteractive}
+                            onDragStart={isInteractive ? (e) => {
+                              e.dataTransfer.setData('application/json', JSON.stringify({
+                                appointmentId: appointment.id,
+                                originalTime: format(new Date(appointment.start), 'HH:mm')
+                              }))
+                            } : undefined}
                           >
                             {/* Main appointment info */}
                             <div className="space-y-1 min-h-0 overflow-hidden">
@@ -1143,15 +1784,15 @@ function WeekView({
                                 </div>
                               )}
                               {/* Status indicator for past appointments */}
-                              {isPastAppointment && !isCancelledOrNoShow && (
+                              {isPastAppointment && !isCancelled && (
                                 <div className="text-[9px] text-gray-500 leading-tight">
-                                  {appointment.status === 'fulfilled' ? 'Atendida' : 'No atendida'}
+                                  {appointment.status === 'completed' ? 'Atendida' : 'No atendida'}
                                 </div>
                               )}
                               {/* Status indicator for cancelled appointments */}
-                              {isCancelledOrNoShow && (
+                              {isCancelled && (
                                 <div className="text-[9px] text-red-600 leading-tight">
-                                  {appointment.status === 'cancelled' ? 'Cancelada' : 'No asistió'}
+                                  Cancelada
                                 </div>
                               )}
                             </div>
@@ -1164,6 +1805,7 @@ function WeekView({
               </div>
             )
           })}
+          </div>
         </div>
       </div>
     </div>
@@ -1268,7 +1910,7 @@ function MonthView({ date, appointments, onDayClick, getAppointmentColor }: Mont
                 {dayAppointments.slice(0, 3).map((appointment, index) => {
                   const startTime = new Date(appointment.start)
                   const isPastAppointment = startTime < today
-                  const isCancelledOrNoShow = appointment.status === 'cancelled' || appointment.status === 'no-show'
+                  const isCancelled = appointment.status === 'cancelled'
 
                   return (
                     <div
@@ -1279,26 +1921,26 @@ function MonthView({ date, appointments, onDayClick, getAppointmentColor }: Mont
                         appointment.type === 'telemedicine'
                           ? isPastAppointment
                             ? "bg-green-100 text-green-700 opacity-60"
-                            : isCancelledOrNoShow
-                            ? "bg-gray-100 text-gray-600 line-through opacity-60"
-                            : "bg-green-100 text-green-700 hover:bg-green-200"
+                            : isCancelled
+                              ? "bg-gray-100 text-gray-600 line-through opacity-60"
+                              : "bg-green-100 text-green-700 hover:bg-green-200"
                           : isPastAppointment
                             ? "bg-blue-100 text-blue-700 opacity-60"
-                            : isCancelledOrNoShow
-                            ? "bg-gray-100 text-gray-600 line-through opacity-60"
-                            : "bg-blue-100 text-blue-700 hover:bg-blue-200",
+                            : isCancelled
+                              ? "bg-gray-100 text-gray-600 line-through opacity-60"
+                              : "bg-blue-100 text-blue-700 hover:bg-blue-200",
                         "border-l-2",
                         appointment.type === 'telemedicine'
                           ? isPastAppointment
                             ? "border-green-400"
-                            : isCancelledOrNoShow
-                            ? "border-gray-400"
-                            : "border-green-600"
+                            : isCancelled
+                              ? "border-gray-400"
+                              : "border-green-600"
                           : isPastAppointment
                             ? "border-blue-400"
-                            : isCancelledOrNoShow
-                            ? "border-gray-400"
-                            : "border-blue-600"
+                            : isCancelled
+                              ? "border-gray-400"
+                              : "border-blue-600"
                       )}
                       title={`${format(startTime, 'HH:mm')} - ${appointment.patientName} ${appointment.reason ? `(${appointment.reason})` : ''}`}
                     >

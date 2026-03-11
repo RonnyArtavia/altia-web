@@ -18,7 +18,7 @@ interface CreateAppointmentData {
   start: Date
   end: Date
   type: 'in-person' | 'telemedicine'
-  status?: 'pending' | 'booked' | 'arrived' | 'fulfilled' | 'cancelled'
+  status?: 'scheduled' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'
   reason?: string
   description?: string
   title?: string
@@ -30,7 +30,7 @@ interface UpdateAppointmentData {
   start?: Date
   end?: Date
   type?: 'in-person' | 'telemedicine'
-  status?: 'pending' | 'booked' | 'arrived' | 'fulfilled' | 'cancelled' | 'no-show'
+  status?: 'scheduled' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'
   reason?: string
   description?: string
   title?: string
@@ -88,7 +88,7 @@ export function useCreateAppointment() {
         ...cleanData,
         start: Timestamp.fromDate(data.start),
         end: Timestamp.fromDate(data.end),
-        status: data.status || 'pending',
+        status: data.status || 'scheduled',
         createdBy: userData.uid,
         createdByEmail: userData.email,
         createdAt: serverTimestamp(),
@@ -256,55 +256,9 @@ export function useCancelAppointment() {
 }
 
 /**
- * Hook for confirming an appointment (doctor only)
+ * Hook for marking appointment as waiting (patient arrived)
  */
-export function useConfirmAppointment() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      appointmentId,
-      organizationId,
-      doctorId
-    }: {
-      appointmentId: string
-      organizationId: string
-      doctorId: string
-    }) => {
-      const appointmentRef = doc(firestore, 'organizations', organizationId, 'appointments', appointmentId)
-
-      const updateData = {
-        status: 'booked' as const,
-        confirmedBy: doctorId,
-        confirmedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }
-
-      await updateDoc(appointmentRef, updateData)
-
-      return { appointmentId, ...updateData }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] })
-      queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
-
-      toast.success('Cita confirmada', {
-        description: 'La cita ha sido confirmada exitosamente',
-      })
-    },
-    onError: (error) => {
-      console.error('Error confirming appointment:', error)
-      toast.error('Error al confirmar la cita', {
-        description: 'Por favor intenta de nuevo',
-      })
-    },
-  })
-}
-
-/**
- * Hook for marking appointment as arrived
- */
-export function useMarkAppointmentArrived() {
+export function useMarkAppointmentWaiting() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -318,8 +272,8 @@ export function useMarkAppointmentArrived() {
       const appointmentRef = doc(firestore, 'organizations', organizationId, 'appointments', appointmentId)
 
       const updateData = {
-        status: 'arrived' as const,
-        arrivedAt: serverTimestamp(),
+        status: 'waiting' as const,
+        waitingAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }
 
@@ -331,11 +285,11 @@ export function useMarkAppointmentArrived() {
       queryClient.invalidateQueries({ queryKey: ['appointments'] })
       queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
 
-      toast.success('Paciente registrado como presente')
+      toast.success('Paciente registrado en espera')
     },
     onError: (error) => {
-      console.error('Error marking appointment as arrived:', error)
-      toast.error('Error al registrar llegada', {
+      console.error('Error marking appointment as waiting:', error)
+      toast.error('Error al registrar paciente en espera', {
         description: 'Por favor intenta de nuevo',
       })
     },
@@ -343,9 +297,9 @@ export function useMarkAppointmentArrived() {
 }
 
 /**
- * Hook for marking appointment as fulfilled
+ * Hook for marking appointment as in-progress (doctor started consultation)
  */
-export function useMarkAppointmentFulfilled() {
+export function useMarkAppointmentInProgress() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -359,8 +313,49 @@ export function useMarkAppointmentFulfilled() {
       const appointmentRef = doc(firestore, 'organizations', organizationId, 'appointments', appointmentId)
 
       const updateData = {
-        status: 'fulfilled' as const,
-        fulfilledAt: serverTimestamp(),
+        status: 'in-progress' as const,
+        inProgressAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+
+      await updateDoc(appointmentRef, updateData)
+
+      return { appointmentId, ...updateData }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
+
+      toast.success('Consulta iniciada')
+    },
+    onError: (error) => {
+      console.error('Error marking appointment as in-progress:', error)
+      toast.error('Error al iniciar consulta', {
+        description: 'Por favor intenta de nuevo',
+      })
+    },
+  })
+}
+
+/**
+ * Hook for marking appointment as completed
+ */
+export function useMarkAppointmentCompleted() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      appointmentId,
+      organizationId
+    }: {
+      appointmentId: string
+      organizationId: string
+    }) => {
+      const appointmentRef = doc(firestore, 'organizations', organizationId, 'appointments', appointmentId)
+
+      const updateData = {
+        status: 'completed' as const,
+        completedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }
 
@@ -375,49 +370,8 @@ export function useMarkAppointmentFulfilled() {
       toast.success('Consulta marcada como completada')
     },
     onError: (error) => {
-      console.error('Error marking appointment as fulfilled:', error)
+      console.error('Error marking appointment as completed:', error)
       toast.error('Error al completar consulta', {
-        description: 'Por favor intenta de nuevo',
-      })
-    },
-  })
-}
-
-/**
- * Hook for marking appointment as no-show
- */
-export function useMarkAppointmentNoShow() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      appointmentId,
-      organizationId
-    }: {
-      appointmentId: string
-      organizationId: string
-    }) => {
-      const appointmentRef = doc(firestore, 'organizations', organizationId, 'appointments', appointmentId)
-
-      const updateData = {
-        status: 'no-show' as const,
-        noShowAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }
-
-      await updateDoc(appointmentRef, updateData)
-
-      return { appointmentId, ...updateData }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] })
-      queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
-
-      toast.success('Paciente marcado como ausente')
-    },
-    onError: (error) => {
-      console.error('Error marking appointment as no-show:', error)
-      toast.error('Error al marcar ausencia', {
         description: 'Por favor intenta de nuevo',
       })
     },
@@ -467,20 +421,18 @@ export function useAppointmentMutations() {
   const createAppointment = useCreateAppointment()
   const updateAppointment = useUpdateAppointment()
   const cancelAppointment = useCancelAppointment()
-  const confirmAppointment = useConfirmAppointment()
-  const markArrived = useMarkAppointmentArrived()
-  const markFulfilled = useMarkAppointmentFulfilled()
-  const markNoShow = useMarkAppointmentNoShow()
+  const markWaiting = useMarkAppointmentWaiting()
+  const markInProgress = useMarkAppointmentInProgress()
+  const markCompleted = useMarkAppointmentCompleted()
   const deleteAppointment = useDeleteAppointment()
 
   return {
     createAppointment,
     updateAppointment,
     cancelAppointment,
-    confirmAppointment,
-    markArrived,
-    markFulfilled,
-    markNoShow,
+    markWaiting,
+    markInProgress,
+    markCompleted,
     deleteAppointment,
   }
 }

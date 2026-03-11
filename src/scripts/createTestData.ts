@@ -97,7 +97,7 @@ export async function createTestData(organizationId: string, doctorId: string) {
         start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 9, 0),
         end: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 10, 0),
         type: 'in-person',
-        status: 'booked',
+        status: 'scheduled',
         reason: 'Consulta general',
         description: 'Revisión rutinaria',
         organizationId
@@ -110,7 +110,7 @@ export async function createTestData(organizationId: string, doctorId: string) {
         start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 10, 30),
         end: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 11, 30),
         type: 'telemedicine',
-        status: 'pending',
+        status: 'scheduled',
         reason: 'Consulta de seguimiento',
         description: 'Control post-cirugía',
         organizationId
@@ -123,7 +123,7 @@ export async function createTestData(organizationId: string, doctorId: string) {
         start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 14, 0),
         end: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 15, 0),
         type: 'in-person',
-        status: 'arrived',
+        status: 'waiting',
         reason: 'Consulta especializada',
         description: 'Evaluación cardiológica',
         organizationId
@@ -136,7 +136,7 @@ export async function createTestData(organizationId: string, doctorId: string) {
         start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 16, 0),
         end: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 17, 0),
         type: 'in-person',
-        status: 'fulfilled',
+        status: 'completed',
         reason: 'Control diabetes',
         description: 'Seguimiento mensual',
         organizationId

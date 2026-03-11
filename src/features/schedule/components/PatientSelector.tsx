@@ -23,14 +23,20 @@ interface Patient {
   dateOfBirth?: string
 }
 
+export interface PatientSearchContext {
+  query: string
+  filter: 'all' | 'name' | 'email' | 'cedula' | 'phone'
+}
+
 interface PatientSelectorProps {
   open: boolean
   onClose: () => void
   onSelect: (patient: Patient) => void
   organizationId: string
+  onNoResults?: (ctx: PatientSearchContext) => void
 }
 
-export function PatientSelector({ open, onClose, onSelect, organizationId }: PatientSelectorProps) {
+export function PatientSelector({ open, onClose, onSelect, organizationId, onNoResults }: PatientSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
   const [searchFilter, setSearchFilter] = useState<'all' | 'name' | 'email' | 'cedula' | 'phone'>('all')
@@ -188,14 +194,20 @@ export function PatientSelector({ open, onClose, onSelect, organizationId }: Pat
                   >
                     Limpiar búsqueda
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Nuevo paciente
-                  </Button>
+                  {onNoResults && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                      onClick={() => {
+                        onClose()
+                        onNoResults({ query: searchQuery, filter: searchFilter })
+                      }}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Registrar nuevo paciente
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

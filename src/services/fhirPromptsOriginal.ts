@@ -108,6 +108,16 @@ TIPOS DE RECURSOS IPS (usar en campo 'type'):
 - "labResult" → Resultados de laboratorio (glucosa 120mg/dL, etc.)
 - "imagingStudy" → Resultados de estudios de imagen
 - "device" → Dispositivos médicos (marcapasos, prótesis, etc.)
+- "familyHistory" → Antecedentes familiares (padre con diabetes, madre hipertensa, etc.)
+- "personalHistory" → Antecedentes personales/quirúrgicos (apendicectomía, fracturas previas, tabaquismo, etc.)
+
+REGLA ANTECEDENTES (CRÍTICO):
+Cuando el médico mencione antecedentes familiares o personales, DEBES extraerlos como items FHIR:
+- Antecedentes FAMILIARES (type="familyHistory"): Incluir "display" (condición), "relationship" (padre/madre/hermano/abuelo/tío/hijo), "details" con el parentesco.
+  Ejemplo: "padre diabético" → {"type":"familyHistory","display":"Diabetes","relationship":"padre","details":"Familiar: padre","action":"Add"}
+- Antecedentes PERSONALES (type="personalHistory"): Incluir "display" (condición), "category" (surgical/medical/social), "details" con el tipo.
+  Ejemplo: "apendicectomía en 2015" → {"type":"personalHistory","display":"Apendicectomía 2015","category":"surgical","details":"Tipo: surgical","action":"Add"}
+- Estos antecedentes también deben registrarse en SOAP sección S (Subjetivo).
 
 IMPORTANTE:
 - Para "condition" (Diagnósticos):
@@ -202,13 +212,21 @@ REGLAS DE ORO:
 - SI EL MÉDICO DICE: "Consultar dosis", "Sugerir tratamiento", "Tiene dolor de cabeza" -> ES UNA SUGERENCIA. Agrégalo a "suggestions".
 - ANTE LA DUDA: Si faltan detalles (dosis, frecuencia, tipo de estudio), NO lo agregues a "fhir". Ponlo en "suggestions" para que el médico apruebe.
 
+SUGERENCIAS DUALES:
+- Si prescribes un medicamento/examen, genera TAMBIÉN una sugerencia "specific" con monitoreo o interacciones relevantes.
+  Ejemplo: Receta Metformina → sugerencia: "Monitorear función renal con creatinina cada 6 meses"
+- Si hay diagnóstico o antecedentes (familiares/personales), genera sugerencias "general" de cuidado integral.
+  Ejemplo: Diabetes diagnosticada → sugerencia: "Evaluación oftalmológica anual recomendada"
+- source="specific": ligada a un item FHIR prescrito en esta consulta
+- source="general": basada en diagnóstico, antecedentes o cuadro clínico general
+
 REGLA CRÍTICA - EDUCACIÓN AL PACIENTE:
 - Si el Plan (P) contiene CUALQUIER medicamento o tratamiento, DEBES generar "healthEducation" con instrucciones claras.
 - Ejemplo: Si P="Ibuprofeno 400mg c/8h por 5 días", entonces healthEducation="Tome Ibuprofeno 400mg cada 8 horas durante 5 días. Tómelo con alimentos para evitar molestias estomacales. Evite consumir alcohol durante el tratamiento."
 - healthEducation NUNCA debe estar vacío si hay plan de tratamiento.
 
 Responde SOLO JSON válido:
-{"type":"noise|note|question|clarification","reason":"(solo si type=noise)","intent":"direct_command|suggestion","soap":{"s":"...","o":"...","a":"...","p":"..."},"healthEducation":"OBLIGATORIO si P tiene contenido - instrucciones claras para el paciente","fhir":[...],"suggestions":[{"id":"unique_id","title":"Título","description":"Razón","type":"diagnosis|medication|lab","data":{"fhir":[...],"soap":{...}}}],"alerts":[],"summary":"...","answer":""}`;
+{"type":"noise|note|question|clarification","reason":"(solo si type=noise)","intent":"direct_command|suggestion","soap":{"s":"...","o":"...","a":"...","p":"..."},"healthEducation":"OBLIGATORIO si P tiene contenido - instrucciones claras para el paciente","fhir":[...],"suggestions":[{"id":"unique_id","title":"Título","description":"Razón","type":"diagnosis|medication|lab","source":"specific|general","data":{"fhir":[...],"soap":{...}}}],"alerts":[],"summary":"...","answer":""}`;
 }
 
 /**

@@ -1,28 +1,26 @@
 /**
- * AppointmentOptionsDialog - Options dialog for existing appointments
- * Shows options to edit, cancel, or view appointment details
+ * AppointmentOptionsDialog - Opciones de cita con cambio de estado por rol
+ * RF-A04: Transiciones con reglas estrictas + auditoría
  */
 
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, Edit, X, Video, MapPin, Stethoscope, User } from 'lucide-react'
-
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
+  Clock, Edit, X, Video, MapPin, Stethoscope,
+  ArrowRight, Loader2, FileText, AlertTriangle,
+} from 'lucide-react'
+
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/features/auth/stores/authStore'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { getAllowedTransitions, STATUS_CONFIG } from '../utils/appointmentTransitions'
+import { changeAppointmentStatus } from '../services/appointmentService'
 
 interface AppointmentData {
   id: string
@@ -33,10 +31,11 @@ interface AppointmentData {
   start: Date
   end: Date
   type: 'in-person' | 'telemedicine'
-  status: 'pending' | 'booked' | 'arrived' | 'fulfilled' | 'cancelled' | 'no-show'
+  status: 'scheduled' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'
   reason?: string
   description?: string
   organizationId: string
+  waitingAt?: Date
 }
 
 interface AppointmentOptionsDialogProps {
@@ -44,243 +43,256 @@ interface AppointmentOptionsDialogProps {
   open: boolean
   onClose: () => void
   onEdit: (appointment: AppointmentData) => void
+  onStatusChanged?: () => void
+}
+
+const STATUS_STYLES: Record<string, { dot: string; bg: string; text: string }> = {
+  scheduled:   { dot: 'bg-blue-500',   bg: 'bg-blue-50',   text: 'text-blue-700' },
+  waiting:     { dot: 'bg-amber-500',  bg: 'bg-amber-50',  text: 'text-amber-700' },
+  'in-progress': { dot: 'bg-green-500', bg: 'bg-green-50', text: 'text-green-700' },
+  completed:   { dot: 'bg-gray-400',   bg: 'bg-gray-100',  text: 'text-gray-600' },
+  cancelled:   { dot: 'bg-red-400',    bg: 'bg-red-50',    text: 'text-red-600' },
+}
+
+const TRANSITION_STYLES: Record<string, { bg: string; hover: string; text: string; border: string }> = {
+  waiting:      { bg: 'bg-amber-50',  hover: 'hover:bg-amber-100', text: 'text-amber-800', border: 'border-amber-200' },
+  scheduled:    { bg: 'bg-blue-50',   hover: 'hover:bg-blue-100',  text: 'text-blue-800',  border: 'border-blue-200' },
+  'in-progress':{ bg: 'bg-green-50',  hover: 'hover:bg-green-100', text: 'text-green-800', border: 'border-green-200' },
+  completed:    { bg: 'bg-gray-50',   hover: 'hover:bg-gray-100',  text: 'text-gray-700',  border: 'border-gray-200' },
 }
 
 export function AppointmentOptionsDialog({
   appointment,
   open,
   onClose,
-  onEdit
+  onEdit,
+  onStatusChanged,
 }: AppointmentOptionsDialogProps) {
-  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
-  const { userData } = useAuthStore()
+  const { user, userData } = useAuthStore()
 
-  // Check if user is a doctor
   const isDoctor = userData?.role === 'doctor'
+  const userRole = userData?.role === 'doctor' ? 'doctor' : 'secretary'
+  const userId = userData?.uid || user?.uid || ''
 
-  const handleStartConsultation = () => {
-    if (!appointment) return
+  if (!appointment) return null
 
-    // Navigate to medical notes page with correct role prefix
-    const rolePrefix = userData?.role === 'doctor' ? '/doctor' : '/assistant'
-    navigate(`${rolePrefix}/consulta/${appointment.id}/${appointment.patientId}`)
-    onClose()
-  }
+  const now = new Date()
+  const isPast = new Date(appointment.end) <= now
+  const statusStyle = STATUS_STYLES[appointment.status] ?? STATUS_STYLES.scheduled
 
-  const handleCancel = async () => {
-    if (!appointment) return
+  const allowedTransitions = getAllowedTransitions(appointment.status, userRole)
+    .filter(s => s !== 'cancelled')
 
+  const canEdit = !isPast && (appointment.status === 'scheduled' || appointment.status === 'waiting')
+  const canCancel = !isPast && (appointment.status === 'scheduled' || appointment.status === 'waiting')
+  const canStartConsultation = isDoctor && !isPast &&
+    (appointment.status === 'waiting' || appointment.status === 'in-progress')
+
+  const handleStatusChange = async (newStatus: AppointmentData['status']) => {
+    if (!userId) return
     setIsSubmitting(true)
     try {
-      // TODO: Implement actual appointment cancellation
-      console.log('Cancelling appointment:', {
-        appointmentId: appointment.id,
-        reason: cancelReason || 'Cancelada por el usuario'
-      })
-
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      toast.success('Cita cancelada exitosamente')
-      setShowCancelDialog(false)
+      await changeAppointmentStatus(appointment.id, appointment.organizationId, newStatus, userId, userRole)
+      toast.success(`Estado → ${STATUS_CONFIG[newStatus]?.label}`)
+      onStatusChanged?.()
       onClose()
-      setCancelReason('')
-    } catch (error) {
-      console.error('Error cancelling appointment:', error)
-      toast.error('Error al cancelar la cita')
+    } catch (err: any) {
+      toast.error(err.message || 'Error al cambiar estado')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="text-yellow-600 border-yellow-300">Pendiente</Badge>
-      case 'booked':
-        return <Badge variant="outline" className="text-blue-600 border-blue-300">Confirmada</Badge>
-      case 'arrived':
-        return <Badge variant="outline" className="text-green-600 border-green-300">Llegó</Badge>
-      case 'fulfilled':
-        return <Badge variant="outline" className="text-green-700 border-green-400">Completada</Badge>
-      case 'cancelled':
-        return <Badge variant="outline" className="text-red-600 border-red-300">Cancelada</Badge>
-      case 'no-show':
-        return <Badge variant="outline" className="text-gray-600 border-gray-300">Ausente</Badge>
-      default:
-        return <Badge variant="outline">Desconocido</Badge>
+  const handleCancel = async () => {
+    if (!userId) return
+    setIsSubmitting(true)
+    try {
+      await changeAppointmentStatus(appointment.id, appointment.organizationId, 'cancelled', userId, userRole)
+      toast.success('Cita cancelada')
+      setShowCancelConfirm(false)
+      setCancelReason('')
+      onStatusChanged?.()
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'Error al cancelar')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  // Check if appointment is in the past (including current time)
-  const now = new Date()
-  const isPastAppointment = appointment ? new Date(appointment.end) <= now : false
-
-  const canEdit = appointment && !isPastAppointment && (appointment.status === 'pending' || appointment.status === 'booked')
-  const canCancel = appointment && !isPastAppointment && (appointment.status === 'pending' || appointment.status === 'booked')
-  // Show "Iniciar Consulta Médica" for appointments that are confirmed or can be started
-  // Only show for doctors
-  const canStartConsultation = isDoctor && appointment && !isPastAppointment &&
-    (appointment.status === 'booked' || appointment.status === 'arrived' || appointment.status === 'pending')
-
-  if (!appointment) return null
+  const handleClose = () => {
+    setShowCancelConfirm(false)
+    setCancelReason('')
+    onClose()
+  }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-blue-600" />
-              Opciones de Cita
-            </DialogTitle>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden rounded-2xl" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">{appointment.patientName}</DialogTitle>
 
-          <div className="space-y-4">
-            {/* Appointment Details */}
-            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 leading-tight">{appointment.patientName}</h3>
-                  <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                    <User className="h-3.5 w-3.5" />
-                    <span>Paciente Registrado</span>
-                  </div>
-                </div>
-                {getStatusBadge(appointment.status)}
-              </div>
+        {/* ── Header: paciente + estado ── */}
+        <div className="px-5 pt-5 pb-4">
+          <div>
+            <h2 className="text-base font-bold text-gray-900 leading-tight pr-8">
+              {appointment.patientName}
+            </h2>
+            {/* Status pill */}
+            <span className={cn(
+              'inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium',
+              statusStyle.bg, statusStyle.text
+            )}>
+              <span className={cn('w-1.5 h-1.5 rounded-full', statusStyle.dot)} />
+              {STATUS_CONFIG[appointment.status]?.label ?? appointment.status}
+            </span>
+          </div>
 
-              <div className="flex items-center gap-3 p-3 bg-blue-50/50 rounded-lg border border-blue-100/50">
-                <div className="bg-white p-2 rounded-md shadow-sm text-blue-600">
-                  <Clock className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Horario</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {format(appointment.start, 'h:mm a')} - {format(appointment.end, 'h:mm a')}
-                  </span>
-                  <span className="text-xs text-gray-500 capitalize">
-                    {format(appointment.start, "EEEE, d 'de' MMMM", { locale: es })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-sm text-gray-600 px-1">
-                <div className="flex items-center gap-2.5">
-                  {appointment.type === 'telemedicine' ? (
-                    <><div className="p-1 bg-indigo-50 rounded text-indigo-600"><Video className="h-3.5 w-3.5" /></div><span className="font-medium text-gray-700">Telemedicina</span></>
-                  ) : (
-                    <><div className="p-1 bg-emerald-50 rounded text-emerald-600"><MapPin className="h-3.5 w-3.5" /></div><span className="font-medium text-gray-700">Consulta Presencial</span></>
-                  )}
-                </div>
-
-                {appointment.reason && (
-                  <div className="pt-2 mt-2 border-t border-gray-100">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Motivo</span>
-                    <p className="text-gray-700 leading-relaxed bg-gray-50 p-2 rounded-md">{appointment.reason}</p>
-                  </div>
-                )}
-              </div>
+          {/* Detalles */}
+          <div className="mt-3 space-y-1.5">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>
+                {format(appointment.start, 'h:mm a')} – {format(appointment.end, 'h:mm a')}
+                <span className="mx-1 text-gray-300">·</span>
+                <span className="capitalize">{format(appointment.start, "EEE d 'de' MMMM", { locale: es })}</span>
+              </span>
             </div>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              {appointment.type === 'telemedicine'
+                ? <Video className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />
+                : <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />}
+              <span>{appointment.type === 'telemedicine' ? 'Telemedicina' : 'Consulta Presencial'}</span>
+            </div>
+            {appointment.reason && (
+              <div className="flex items-start gap-2 text-sm text-gray-500">
+                <FileText className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                <span className="line-clamp-2">{appointment.reason}</span>
+              </div>
+            )}
+          </div>
+        </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-4">
-              {canStartConsultation && (
-                <div className="relative">
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl blur opacity-30 group-hover:opacity-100 transition duration-200"></div>
-                  <Button
-                    className="relative w-full h-14 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 text-lg font-semibold rounded-xl"
-                    onClick={handleStartConsultation}
-                  >
-                    <Stethoscope className="h-5 w-5 mr-2" />
-                    Iniciar Consulta Médica
-                  </Button>
+        <Separator />
+
+        {/* ── Acciones principales ── */}
+        <div className="px-4 py-3 space-y-2">
+
+          {/* Iniciar consulta (doctor) */}
+          {canStartConsultation && (
+            <button
+              onClick={() => {
+                const prefix = isDoctor ? '/doctor' : '/assistant'
+                navigate(`${prefix}/consultation?patientId=${appointment.patientId}&appointmentId=${appointment.id}`)
+                onClose()
+              }}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Stethoscope className="h-4 w-4" />
+                <span>Iniciar consulta</span>
+              </div>
+              <ArrowRight className="h-4 w-4 opacity-80" />
+            </button>
+          )}
+
+          {/* Transiciones de estado por rol */}
+          {allowedTransitions.map(status => {
+            const ts = TRANSITION_STYLES[status]
+            return (
+              <button
+                key={status}
+                disabled={isSubmitting}
+                onClick={() => handleStatusChange(status as AppointmentData['status'])}
+                className={cn(
+                  'w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-50',
+                  ts?.bg, ts?.hover, ts?.text, ts?.border
+                )}
+              >
+                <span>Marcar como {STATUS_CONFIG[status]?.label}</span>
+                {isSubmitting
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <ArrowRight className="h-4 w-4" />}
+              </button>
+            )
+          })}
+
+          {/* Editar */}
+          {canEdit && (
+            <button
+              onClick={() => { onEdit(appointment); onClose() }}
+              className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm text-gray-700 font-medium transition-colors"
+            >
+              <Edit className="h-4 w-4 text-gray-400" />
+              <span>Editar cita</span>
+            </button>
+          )}
+
+          {/* Sin acciones disponibles */}
+          {!canStartConsultation && allowedTransitions.length === 0 && !canEdit && !canCancel && (
+            <p className="text-center text-sm text-gray-400 py-2">
+              No hay acciones disponibles para esta cita
+            </p>
+          )}
+        </div>
+
+        {/* ── Cancelar cita (acción destructiva) ── */}
+        {canCancel && (
+          <>
+            <Separator />
+            <div className="px-4 py-3">
+              {!showCancelConfirm ? (
+                <button
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm text-red-500 hover:text-red-600 hover:bg-red-50 font-medium transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                  Cancelar cita
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 text-sm text-red-700">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>¿Confirmar cancelación? Esta acción no se puede deshacer.</span>
+                  </div>
+                  <Textarea
+                    placeholder="Motivo (opcional)"
+                    value={cancelReason}
+                    onChange={e => setCancelReason(e.target.value)}
+                    rows={2}
+                    className="text-sm resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => { setShowCancelConfirm(false); setCancelReason('') }}
+                      disabled={isSubmitting}
+                    >
+                      Mantener
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                      onClick={handleCancel}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : 'Confirmar'}
+                    </Button>
+                  </div>
                 </div>
               )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  variant="outline"
-                  className="h-11 border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-900"
-                  onClick={() => {
-                    onEdit(appointment)
-                    onClose()
-                  }}
-                  disabled={!canEdit}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  {canEdit ? 'Editar' : 'No editable'}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "h-11 border-gray-200",
-                    canCancel
-                      ? "hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-gray-700"
-                      : "text-gray-400"
-                  )}
-                  onClick={() => setShowCancelDialog(true)}
-                  disabled={!canCancel}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  {canCancel ? 'Cancelar' : 'No cancelable'}
-                </Button>
-              </div>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </>
+        )}
 
-      {/* Cancel Confirmation Dialog */}
-      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <X className="h-5 w-5 text-red-600" />
-              Cancelar Cita
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <p className="text-gray-600">
-              ¿Estás seguro de que quieres cancelar la cita con <strong>{appointment.patientName}</strong>?
-              Esta acción no se puede deshacer.
-            </p>
-
-            <div className="space-y-3">
-              <Label htmlFor="cancel-reason">Motivo de cancelación (opcional)</Label>
-              <Textarea
-                id="cancel-reason"
-                placeholder="Ingresa el motivo de la cancelación..."
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowCancelDialog(false)}
-              disabled={isSubmitting}
-            >
-              No, mantener cita
-            </Button>
-            <Button
-              onClick={handleCancel}
-              disabled={isSubmitting}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {isSubmitting ? 'Cancelando...' : 'Sí, cancelar cita'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }

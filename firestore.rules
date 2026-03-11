@@ -1,0 +1,484 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // HYBRID AUTHENTICATION SYSTEM
+    // Supports BOTH mobile (multi-tenant) and web (single-tenant) models
+    // ============================================================
+
+    // Helper functions for authentication and authorization
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return userExists()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+    }
+
+    // Get user role (mobile model: role field, web model: role field)
+    function getUserRole() {
+      return getUserData() != null ? getUserData().role : null;
+    }
+
+    function isDoctor() {
+      return isAuthenticated() &&
+             userExists() &&
+             (getUserRole() == 'doctor' || getUserRole() == 'admin');
+    }
+
+    function isSecretary() {
+      return isAuthenticated() &&
+             userExists() &&
+             (getUserRole() == 'secretary' || getUserRole() == 'admin');
+    }
+
+    function isPatient() {
+      return isAuthenticated() &&
+             userExists() &&
+             getUserRole() == 'patient';
+    }
+
+    function isDoctorOrSecretary() {
+      return isDoctor() || isSecretary();
+    }
+
+    // HYBRID: Support both mobile (organizations) and web (organizationId) models
+    function belongsToOrganization(organizationId) {
+      let userData = getUserData();
+      return userData == null ? false :
+             userData.organizationId != null ? userData.organizationId == organizationId :
+             userData.organizations != null ?
+               (organizationId in userData.organizations &&
+                userData.organizations[organizationId].isActive == true) :
+               false;
+    }
+
+    // HYBRID: Get organization role for mobile model, assume doctor/secretary for web model
+    function hasOrganizationRole(organizationId, requiredRole) {
+      let userData = getUserData();
+      return userData == null ? false :
+             userData.organizationId != null ?
+               (userData.organizationId == organizationId && isDoctorOrSecretary()) :
+             userData.organizations != null && organizationId in userData.organizations ?
+               checkMobileRole(userData.organizations[organizationId].role, requiredRole) :
+               false;
+    }
+
+    // Helper function for mobile role checking
+    function checkMobileRole(userRole, requiredRole) {
+      return userRole == null ? false :
+             userRole == 'owner' ? true :
+             requiredRole == 'admin' ? userRole in ['admin'] :
+             requiredRole == 'doctor' ? userRole in ['admin', 'doctor'] :
+             requiredRole == 'nurse' ? userRole in ['admin', 'doctor', 'nurse'] :
+             requiredRole == 'receptionist' ? userRole in ['admin', 'doctor', 'nurse', 'receptionist'] :
+             false;
+    }
+
+    // Check if doctor can access resource
+    function doctorCanAccessResource(resource) {
+      // Hotfix: Allow global access for Doctors/Secretaries to match patients_fhir permission level
+      // This solves the issue where resources missing explicit organizationId were inaccessible
+      return isDoctorOrSecretary() || (
+             getResourceOrganizationId(resource) != null &&
+             belongsToOrganization(getResourceOrganizationId(resource)) &&
+             hasOrganizationRole(getResourceOrganizationId(resource), 'doctor')
+      );
+    }
+
+    // Get organization ID from resource
+    function getResourceOrganizationId(resource) {
+      return resource.data.organizationId != null ? resource.data.organizationId :
+             resource.data.subject != null && resource.data.subject.reference != null ?
+               extractOrganizationFromReference(resource.data.subject.reference) :
+               null;
+    }
+
+    // Extract organization from FHIR reference
+    function extractOrganizationFromReference(reference) {
+      // Reference format: "Patient/patient_martinez_5_1769893997609"
+      // Extract organization from patient ID pattern
+      return reference != null && reference is string ?
+             (reference.matches('.*_[0-9]+_[0-9]+$') ? 'org_altea_test_001' : null) : null;
+    }
+
+    function getUserOrganizationId() {
+      let userData = getUserData();
+      return userData != null ? userData.organizationId : null;
+    }
+
+    function belongsToUserOrganization(organizationId) {
+      return getUserOrganizationId() == organizationId;
+    }
+
+    // Users collection - users can read/write their own data
+    // EMPI Update: Allow 'list' for all authenticated users to support duplicate checks
+    // Registration: Allow limited read access for email validation during registration
+    match /users/{userId} {
+      allow get: if isAuthenticated() && request.auth.uid == userId;
+      allow list: if isAuthenticated() ||
+                     // Allow unauthenticated email validation queries (limited to email field only)
+                     (request.query != null &&
+                      request.query.where != null &&
+                      request.query.where.size() == 1 &&
+                      request.query.where[0][0] == 'email') ||
+                     // Allow unauthenticated doctor lookup for assistant registration
+                     (request.query != null &&
+                      request.query.where != null &&
+                      request.query.where.size() == 2 &&
+                      request.query.where[0][0] == 'role' &&
+                      request.query.where[0][2] == 'doctor' &&
+                      request.query.where[1][0] == 'medicalLicense');
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+
+      // Allow doctors to update assistant status for their assistants
+      allow update: if isDoctor() &&
+                       resource.data.role == 'secretary' &&
+                       (request.resource.data.assistantStatus != null ||
+                        request.resource.data.authorizedBy != null ||
+                        request.resource.data.doctorId != null);
+    }
+
+    // Appointment Requests FHIR Collection
+    match /appointment_requests_fhir/{requestId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Appointments collection
+    match /appointments/{appointmentId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Patients collection
+    match /patients/{patientId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Patients FHIR collection
+    match /patients_fhir/{patientId} {
+      // Allow doctors/secretaries full access
+      allow read, write: if isDoctorOrSecretary();
+
+      // Allow patients to find their record (search by cedula)
+      allow read: if isAuthenticated();
+
+      // Allow patients to claim/link their record
+      allow create: if isAuthenticated() && request.resource.data.linkedUserId == request.auth.uid;
+
+      // Update: When linking an EXISTING patient record (claiming)
+      allow update: if isAuthenticated()
+                    && (
+                      // Case 1: Claiming an unclaimed record (setting linkedUserId to self)
+                      (request.resource.data.linkedUserId == request.auth.uid) ||
+                      // Case 2: Updating own record
+                      (resource.data.linkedUserId == request.auth.uid)
+                    );
+    }
+
+    // FHIR R4 Clinical Collections - HYBRID: Support both mobile and web models
+    match /conditions_fhir/{conditionId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /medication_statements_fhir/{medicationId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /allergy_intolerances_fhir/{allergyId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /observations_fhir/{observationId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /encounters_fhir/{encounterId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /compositions_fhir/{compositionId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /bundles_fhir/{bundleId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /immunizations_fhir/{immunizationId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /procedures_fhir/{procedureId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /service_requests_fhir/{requestId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /diagnostic_reports_fhir/{reportId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    // Communications collection (Health Education)
+    match /communications_fhir/{communicationId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /practitioners_fhir/{practitionerId} {
+      // TEMPORARY: More permissive for debugging
+      allow get, list, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    match /medication_requests_fhir/{requestId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /clinical_impressions_fhir/{impressionId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /document_references_fhir/{referenceId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    match /family_member_history_fhir/{historyId} {
+      allow get: if isAuthenticated() && doctorCanAccessResource(resource);
+      allow list: if isAuthenticated();
+      allow create, update: if isDoctor() && doctorCanAccessResource(request.resource);
+      allow delete: if false;
+    }
+
+    // Consents FHIR collection (Registration Flow)
+    match /consents_fhir/{consentId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Organizations collection
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+
+      // Appointments subcollection for web application
+      match /appointments/{appointmentId} {
+        allow read, write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+
+      // Consents subcollection (Registration Flow)
+      match /consents/{consentId} {
+         allow read, write: if isAuthenticated();
+      }
+
+      // Doctor Schedules subcollection for web application
+      match /doctorSchedules/{doctorId} {
+        // TEMPORARY: More permissive for debugging schedule configuration issues
+        allow read, write: if isAuthenticated();
+
+        // Config subcollection for schedule configuration
+        match /config/{configId} {
+          // TEMPORARY: More permissive for debugging schedule configuration issues
+          allow read, write: if isAuthenticated();
+        }
+      }
+
+      // Agendas subcollection — RF-C01
+      match /agendas/{agendaId} {
+        allow read: if isAuthenticated() && belongsToOrganization(orgId);
+        allow create, update: if isDoctorOrSecretary() && belongsToOrganization(orgId);
+        allow delete: if isDoctorOrSecretary() && belongsToOrganization(orgId);
+
+        // Schedule blocks subcollection
+        match /blocks/{blockId} {
+          allow read: if isAuthenticated() && belongsToOrganization(orgId);
+          allow create, update: if isDoctorOrSecretary() && belongsToOrganization(orgId);
+          allow delete: if isDoctorOrSecretary() && belongsToOrganization(orgId);
+        }
+      }
+    }
+
+    // COLLECTION GROUP RULES - Support for cross-organization queries (mobile app)
+    // This allows collectionGroup('appointments') queries across all organizations
+    match /{path=**}/appointments/{appointmentId} {
+      // Allow authenticated users to read appointments from collectionGroup queries
+      // This covers both top-level appointments and organization subcollections
+      allow read: if isAuthenticated();
+    }
+
+    // Notes collection
+    match /notes/{noteId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Notification Preferences collection (for push tokens)
+    match /notificationPreferences/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // In-App Notifications collection
+    match /notifications/{notificationId} {
+      // Allow users to read their own notifications
+      allow read: if isAuthenticated() &&
+                     (resource.data.userId == request.auth.uid || isDoctorOrSecretary());
+      // Allow doctors/secretaries to create notifications
+      allow write: if isDoctorOrSecretary();
+      // Allow list queries for unread count (filtered by userId in app code)
+      allow list: if isAuthenticated();
+    }
+
+    // Email Verifications - Allow unauthenticated access for registration flow
+    match /email_verifications/{email} {
+      // Allow creating a token (requesting verification)
+      allow create: if request.resource.id == request.resource.data.email;
+
+      // Allow reading to verify token
+      allow read: if true;
+
+      // Allow updating to track attempts and mark as verified
+      allow update: if request.resource.id == request.resource.data.email;
+    }
+
+    // Scheduled Notifications collection
+    match /scheduled_notifications/{notificationId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Chat Messages collection
+    match /chatMessages/{messageId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // System Configuration collection
+    match /system_config/{configId} {
+      allow read: if isAuthenticated();
+    }
+
+    // Doctors collection (for profiles)
+    match /doctors/{doctorId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Doctor Profiles collection
+    match /doctorProfiles/{profileId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Personal Medications collection - TEMPORARY: More permissive for debugging
+    match /personalMedications/{medicationId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Medication Intakes collection (for tracking doses) - TEMPORARY: More permissive for debugging
+    match /medicationIntakes/{intakeId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // FHIR Import History collection
+    match /fhir_import_history/{importId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Appointment Requests collection (legacy)
+    match /appointmentRequests/{requestId} {
+      allow read, write: if isDoctorOrSecretary();
+    }
+
+    // Medical History Responses collection - TEMPORARY: More permissive for debugging
+    match /medical_history_responses/{responseId} {
+      allow get, list, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // Medical Histories collection (the ACTUAL collection being used) - TEMPORARY: More permissive for debugging
+    match /medicalHistories/{historyId} {
+      allow get, list, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // Conversations collection for messaging - TEMPORARY: More permissive for debugging
+    match /conversations/{conversationId} {
+      allow get, list, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // Messages collection for messaging - TEMPORARY: More permissive for debugging
+    match /messages/{messageId} {
+      allow get, list, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // Assistant Requests collection
+    match /assistantRequests/{requestId} {
+      // Allow creating a request when registering as secretary
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+
+      // Allow doctors to read, approve, and reject requests
+      allow read, update: if isDoctor();
+
+      // Allow secretaries to read their own requests
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // No deletion allowed
+      allow delete: if false;
+    }
+
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

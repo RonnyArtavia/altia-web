@@ -26,6 +26,8 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuthStore } from '@/features/auth/stores/authStore'
+import { TemplateConfigSection } from '../components/TemplateConfigSection'
+import { NotificationConfigSection } from '../components/NotificationConfigSection'
 
 // ─── Sub-components ─────────────────────────────────────────
 
@@ -461,6 +463,16 @@ export function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Document Templates — Doctors Only */}
+        {isDoctor && userData?.organizationId && (
+          <TemplateConfigSection organizationId={userData.organizationId} />
+        )}
+
+        {/* Notification Config — Doctors Only */}
+        {isDoctor && userData?.organizationId && (
+          <NotificationConfigSection organizationId={userData.organizationId} />
         )}
 
         {/* About */}

@@ -33,7 +33,7 @@ export type IPSResourceType =
 
 export interface FHIRPlanItem {
   id: string
-  type: 'condition' | 'medication' | 'allergy' | 'procedure' | 'observation' | 'diagnostic' | 'labResult' | 'imagingStudy' | 'labOrder' | 'imagingOrder' | 'device' | 'order'
+  type: 'condition' | 'medication' | 'allergy' | 'procedure' | 'observation' | 'diagnostic' | 'labResult' | 'imagingStudy' | 'labOrder' | 'imagingOrder' | 'device' | 'order' | 'familyHistory' | 'personalHistory' | 'referral'
   status: 'active' | 'inactive' | 'completed' | 'cancelled'
   text: string
   display?: string
@@ -46,6 +46,16 @@ export interface FHIRPlanItem {
   warningLevel?: 'info' | 'warning' | 'critical'
   category?: string
   notes?: string
+  relationship?: string
+
+  // Approval toggle (default true)
+  approved?: boolean
+
+  // Referral fields
+  specialty?: string
+  reasonForReferral?: string
+  clinicalSummary?: string
+
   // Legacy compatibility
   action?: 'Add' | 'Modify' | 'Remove'
   flag?: 'high' | 'low' | 'critical' | 'abnormal'
@@ -198,6 +208,22 @@ export interface IPSResult {
   notes?: string;
 }
 
+export interface IPSFamilyHistory {
+  name?: string;
+  relationship?: string;
+  date?: string;
+  doctor?: string;
+  notes?: string;
+}
+
+export interface IPSPersonalHistory {
+  name?: string;
+  category?: string;  // surgical, medical, social
+  date?: string;
+  doctor?: string;
+  notes?: string;
+}
+
 export interface IPSDisplayData {
   encounters: ConsultationEntry[];
   allergies: Partial<IPSAllergy>[];
@@ -207,6 +233,8 @@ export interface IPSDisplayData {
   labOrders?: Partial<IPSOrder>[];
   labResults?: Partial<IPSResult>[];
   clinicalEvolution?: ConsultationEntry[];
+  familyHistory?: Partial<IPSFamilyHistory>[];
+  personalHistory?: Partial<IPSPersonalHistory>[];
 }
 
 export interface VitalSignsInput {

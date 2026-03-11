@@ -9,6 +9,7 @@ import {
   MicOff,
   ArrowUp,
   Sparkles,
+  Lightbulb,
   Paperclip,
   FileSignature,
   FileHeart,
@@ -63,6 +64,11 @@ interface ChatPanelCopilotProps {
   patientName?: string;
   patientInfo?: string;
   onApproveSuggestion?: (suggestion: CopilotSuggestion) => void;
+  onRemoveFhirItem?: (id: string) => void;
+  onApproveFhirItems?: (type: 'medications' | 'labOrders' | 'referrals') => void;
+  onRejectFhirItems?: (type: 'medications' | 'labOrders' | 'referrals') => void;
+  fhirPlan?: import('../types/medical-notes').FHIRPlanItem[];
+  fhirCategoryStatus?: Record<string, 'pending' | 'approved' | 'rejected'>;
   isPreprocessing?: boolean;
   lastProcessedTime?: Date | null;
   silenceDetectedTime?: Date | null;
@@ -86,8 +92,8 @@ const QUICK_TEMPLATES = [
   { id: 'plan_hypertension', label: 'Plan HTA', text: 'Plan para hipertensión: Enalapril 20mg PO QD, control de PA diario, dieta hiposódica.' },
 ];
 
-import { PrescriptionDraft, type MedicationItem } from './PrescriptionDraft'; // Feature 4
 import { PatientFollowUp } from './PatientFollowUp'; // Feature 5
+import { groupFhirItems, PrescriptionCard, LabOrderCard, ReferralCard } from './FhirItemCards';
 
 export function ChatPanelCopilot({
   width,
@@ -114,6 +120,11 @@ export function ChatPanelCopilot({
   patientName,
   patientInfo,
   onApproveSuggestion,
+  onRemoveFhirItem,
+  onApproveFhirItems,
+  onRejectFhirItems,
+  fhirPlan = [],
+  fhirCategoryStatus: externalCategoryStatus,
   isPreprocessing,
   bufferCharCount = 0,
   showSavePrompt,
@@ -139,12 +150,60 @@ export function ChatPanelCopilot({
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
 
-  /* Feature 4: Prescription Draft State */
-  const [showPrescriptionDraft, setShowPrescriptionDraft] = useState(false);
-  const [draftItems, setDraftItems] = useState<MedicationItem[] | undefined>(undefined);
 
   /* Feature 5: Follow Up State */
   const [showFollowUp, setShowFollowUp] = useState(false);
+
+  /* FHIR approval tracking — controlled by parent or local fallback */
+  type FhirCategoryType = 'medications' | 'labOrders' | 'referrals'
+  type FhirCategoryStatus = 'pending' | 'approved' | 'rejected'
+  const [localCategoryStatus, setLocalCategoryStatus] = useState<Record<string, FhirCategoryStatus>>({});
+  const categoryStatus = externalCategoryStatus || localCategoryStatus;
+
+  /* Cards ocultas tras aprobar/rechazar + dialogo de confirmacion */
+  const [hiddenCategories, setHiddenCategories] = useState<Set<FhirCategoryType>>(new Set());
+  const [pendingRejectCategory, setPendingRejectCategory] = useState<FhirCategoryType | null>(null);
+
+  const fhirPlanLenRef = useRef(fhirPlan.length);
+  useEffect(() => {
+    if (fhirPlan.length > fhirPlanLenRef.current) {
+      setLocalCategoryStatus({});
+      setHiddenCategories(new Set());
+      setPendingRejectCategory(null);
+    }
+    fhirPlanLenRef.current = fhirPlan.length;
+  }, [fhirPlan.length]);
+
+  // Sync: si el status externo cambia (voz), ocultar la card
+  useEffect(() => {
+    if (!externalCategoryStatus) return;
+    const next = new Set(hiddenCategories);
+    for (const key of Object.keys(externalCategoryStatus) as FhirCategoryType[]) {
+      if (externalCategoryStatus[key] === 'approved' || externalCategoryStatus[key] === 'rejected') {
+        next.add(key);
+      }
+    }
+    if (next.size !== hiddenCategories.size) setHiddenCategories(next);
+  }, [externalCategoryStatus]);
+
+  const handleApproveFhirCategory = (type: FhirCategoryType) => {
+    setLocalCategoryStatus(prev => ({ ...prev, [type]: 'approved' }));
+    setHiddenCategories(prev => new Set(prev).add(type));
+    onApproveFhirItems?.(type);
+  };
+  const handleRejectFhirCategory = (type: FhirCategoryType) => {
+    setPendingRejectCategory(type);
+  };
+  const confirmReject = () => {
+    if (!pendingRejectCategory) return;
+    setLocalCategoryStatus(prev => ({ ...prev, [pendingRejectCategory!]: 'rejected' }));
+    setHiddenCategories(prev => new Set(prev).add(pendingRejectCategory!));
+    onRejectFhirItems?.(pendingRejectCategory!);
+    setPendingRejectCategory(null);
+  };
+  const cancelReject = () => {
+    setPendingRejectCategory(null);
+  };
 
   /* Feature: Lab Result Review */
   const [pendingLabResults, setPendingLabResults] = useState<any | null>(null);
@@ -245,7 +304,7 @@ export function ChatPanelCopilot({
   return (
     <aside
       style={{ width, height: '100%' }}
-      className="bg-white flex flex-col shadow-xl z-20 shrink-0 border-l border-border relative transition-none font-sans"
+      className={cn("bg-white flex flex-col shadow-xl z-20 shrink-0 relative transition-none font-sans", isRight ? "border-l border-border" : "border-r border-border")}
     >
       {/* Resize Handle */}
       <div
@@ -349,8 +408,12 @@ export function ChatPanelCopilot({
             <MoreVertical size={18} />
           </button> */}
           <div className="flex items-center gap-1">
-            <button onClick={togglePosition} className="p-2 text-muted-foreground hover:bg-muted rounded-md transition-colors">
-              <ArrowUp size={16} className="rotate-90" />
+            <button
+              onClick={togglePosition}
+              className="p-2 text-muted-foreground hover:bg-muted rounded-md transition-colors"
+              title={isRight ? 'Mover chat a la izquierda' : 'Mover chat a la derecha'}
+            >
+              <ArrowUp size={16} className={isRight ? '-rotate-90' : 'rotate-90'} />
             </button>
           </div>
         </div>
@@ -395,6 +458,7 @@ export function ChatPanelCopilot({
                 </div>
               )}
 
+
               {/* Attachments / Insights */}
               {/* Grouped Insights / Alerts (Advisor) - Single Card */}
               {msg.insights && msg.insights.length > 0 && (
@@ -420,51 +484,168 @@ export function ChatPanelCopilot({
               )}
 
               {/* Suggestions for Approval */}
-              {msg.suggestions && msg.suggestions.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center gap-2 mb-1 pl-1">
-                    <Sparkles size={12} className="text-indigo-500" />
-                    <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider">Sugerencias (Requieren Aprobación)</span>
-                  </div>
-                  {msg.suggestions.map((suggestion) => (
-                    <div key={suggestion.id} className="p-3 bg-white border border-indigo-100 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className={cn(
-                              "text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase",
-                              suggestion.type === 'diagnosis' ? "bg-red-50 text-red-700 border-red-200" :
-                                suggestion.type === 'medication' ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                  suggestion.type === 'lab' ? "bg-cyan-50 text-cyan-700 border-cyan-200" :
-                                    "bg-slate-50 text-slate-700 border-slate-200"
-                            )}>
-                              {suggestion.type === 'diagnosis' ? 'Diagnóstico' :
-                                suggestion.type === 'medication' ? 'Medicamento' :
-                                  suggestion.type === 'lab' ? 'Laboratorio' : 'Corrección'}
-                            </span>
-                            <span className="font-semibold text-sm text-slate-800">{suggestion.title}</span>
-                          </div>
-                          <p className="text-xs text-slate-600 mt-1.5 ml-0.5 leading-relaxed">{suggestion.description}</p>
+              {msg.suggestions && msg.suggestions.length > 0 && (() => {
+                const specificSuggestions = msg.suggestions.filter(s => s.source === 'specific')
+                const generalSuggestions = msg.suggestions.filter(s => s.source !== 'specific')
+                const hasBoth = specificSuggestions.length > 0 && generalSuggestions.length > 0
+
+                const renderSuggestion = (suggestion: CopilotSuggestion) => (
+                  <div key={suggestion.id} className={cn(
+                    "p-3 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border",
+                    suggestion.source === 'specific' ? "border-blue-200" : "border-emerald-200"
+                  )}>
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={cn(
+                            "text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase",
+                            suggestion.source === 'specific'
+                              ? "bg-blue-50 text-blue-600 border-blue-200"
+                              : "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          )}>
+                            {suggestion.source === 'specific' ? 'Específica' : 'General'}
+                          </span>
+                          <span className={cn(
+                            "text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase",
+                            suggestion.type === 'diagnosis' ? "bg-red-50 text-red-700 border-red-200" :
+                              suggestion.type === 'medication' ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                suggestion.type === 'lab' ? "bg-cyan-50 text-cyan-700 border-cyan-200" :
+                                  "bg-slate-50 text-slate-700 border-slate-200"
+                          )}>
+                            {suggestion.type === 'diagnosis' ? 'Diagnóstico' :
+                              suggestion.type === 'medication' ? 'Medicamento' :
+                                suggestion.type === 'lab' ? 'Laboratorio' : 'Corrección'}
+                          </span>
+                          <span className="font-semibold text-sm text-slate-800">{suggestion.title}</span>
                         </div>
-                        <div className="flex gap-1 shrink-0">
-                          <button
-                            onClick={() => onApproveSuggestion?.(suggestion)}
-                            className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-lg transition-colors border border-emerald-100"
-                            title="Aprobar y agregar a la nota"
-                          >
-                            <CheckCircle size={16} />
-                          </button>
-                        </div>
+                        <p className="text-xs text-slate-600 mt-1.5 ml-0.5 leading-relaxed">{suggestion.description}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => onApproveSuggestion?.(suggestion)}
+                          className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-lg transition-colors border border-emerald-100"
+                          title="Aprobar y agregar a la nota"
+                        >
+                          <CheckCircle size={16} />
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                )
+
+                return (
+                  <div className="mt-3 space-y-2">
+                    {/* Specific suggestions */}
+                    {specificSuggestions.length > 0 && (
+                      <>
+                        {hasBoth && (
+                          <div className="flex items-center gap-2 mb-1 pl-1">
+                            <Sparkles size={12} className="text-blue-500" />
+                            <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider">Sugerencias Específicas</span>
+                          </div>
+                        )}
+                        {specificSuggestions.map(renderSuggestion)}
+                      </>
+                    )}
+
+                    {/* General suggestions */}
+                    {generalSuggestions.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 mb-1 pl-1">
+                          {hasBoth
+                            ? <Lightbulb size={12} className="text-emerald-500" />
+                            : <Sparkles size={12} className="text-indigo-500" />
+                          }
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase tracking-wider",
+                            hasBoth ? "text-emerald-900" : "text-indigo-900"
+                          )}>
+                            {hasBoth ? 'Sugerencias Generales' : 'Sugerencias (Requieren Aprobación)'}
+                          </span>
+                        </div>
+                        {generalSuggestions.map(renderSuggestion)}
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         ))}
 
 
+
+        {/* Active FHIR Plan Summary — cards disappear after approve/reject */}
+        {fhirPlan.length > 0 && (() => {
+          const grouped = groupFhirItems(fhirPlan)
+          const hasMeds = grouped.medications.length > 0 && !hiddenCategories.has('medications')
+          const hasLabs = grouped.labOrders.length > 0 && !hiddenCategories.has('labOrders')
+          const hasRefs = grouped.referrals.length > 0 && !hiddenCategories.has('referrals')
+          if (!hasMeds && !hasLabs && !hasRefs && !pendingRejectCategory) return null
+          return (
+            <div className="max-w-3xl mx-auto space-y-3 animate-in slide-in-from-bottom-2 duration-300">
+              {hasMeds && (
+                <PrescriptionCard
+                  items={grouped.medications}
+                  onRemove={onRemoveFhirItem}
+                  onApprove={() => handleApproveFhirCategory('medications')}
+                  onReject={() => handleRejectFhirCategory('medications')}
+                  status={(categoryStatus['medications'] || 'pending') as FhirCategoryStatus}
+                />
+              )}
+              {hasLabs && (
+                <LabOrderCard
+                  items={grouped.labOrders}
+                  onRemove={onRemoveFhirItem}
+                  onApprove={() => handleApproveFhirCategory('labOrders')}
+                  onReject={() => handleRejectFhirCategory('labOrders')}
+                  status={(categoryStatus['labOrders'] || 'pending') as FhirCategoryStatus}
+                />
+              )}
+              {hasRefs && (
+                <ReferralCard
+                  items={grouped.referrals}
+                  onRemove={onRemoveFhirItem}
+                  onApprove={() => handleApproveFhirCategory('referrals')}
+                  onReject={() => handleRejectFhirCategory('referrals')}
+                  status={(categoryStatus['referrals'] || 'pending') as FhirCategoryStatus}
+                />
+              )}
+
+              {/* Dialogo de confirmacion de rechazo */}
+              {pendingRejectCategory && (
+                <div className="bg-white border-2 border-red-200 rounded-2xl shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center gap-2.5 px-4 py-3 bg-red-50 border-b border-red-100">
+                    <XCircle size={16} className="text-red-500" />
+                    <span className="text-xs font-bold text-red-700 uppercase tracking-wider">Confirmar descarte</span>
+                  </div>
+                  <div className="px-4 py-3">
+                    <p className="text-sm text-slate-700">
+                      {pendingRejectCategory === 'medications' && 'Se descartara la receta y se eliminaran los medicamentos del plan.'}
+                      {pendingRejectCategory === 'labOrders' && 'Se descartara la orden de laboratorio y se eliminaran los examenes del plan.'}
+                      {pendingRejectCategory === 'referrals' && 'Se descartara la referencia y se eliminara del plan.'}
+                    </p>
+                  </div>
+                  <div className="flex border-t border-red-100">
+                    <button
+                      onClick={cancelReject}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-red-100"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={confirmReject}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-sm font-semibold transition-colors"
+                    >
+                      <XCircle size={16} />
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Processing Message Bubble */}
         {isProcessing && (
@@ -542,20 +723,6 @@ export function ChatPanelCopilot({
               <SafeguardsPanel status={guardStatus} alerts={alerts} />
             )}
 
-            {/* Feature 4: Prescription Draft Mode */}
-            {showPrescriptionDraft && (
-              <PrescriptionDraft
-                initialItems={draftItems || []}
-                onCancel={() => { setShowPrescriptionDraft(false); setDraftItems(undefined); }}
-                onConfirm={(items) => {
-                  // Format prescription text
-                  const scriptText = "RECETA MÉDICA:\n" + items.map(i => `- ${i.name} ${i.dose} (${i.frequency}) x ${i.duration}`).join('\n');
-                  setInputText(prev => prev + (prev ? '\n\n' : '') + scriptText);
-                  setShowPrescriptionDraft(false);
-                  textareaRef.current?.focus();
-                }}
-              />
-            )}
 
             {/* Feature 5: Patient Follow-up Automation */}
             {showFollowUp && (
@@ -613,98 +780,52 @@ export function ChatPanelCopilot({
             )}
 
 
-            {/* Recording / Preprocessing Overlay */}
+            {/* Recording / Preprocessing Indicator Bar (compact, above textarea) */}
             {(isRecording || isPaused || isPreprocessing) && (
-              <div className="absolute inset-0 bg-white/92 backdrop-blur-lg rounded-2xl z-20 flex items-center justify-between px-5 border border-slate-200/80 shadow-sm transition-all duration-500">
-
-                {/* Left: Waveform & Status */}
-                <div className="flex items-center gap-3.5">
-                  {/* Equalizer Visualizer */}
-                  <div className="flex items-end gap-[2.5px] h-7 w-8">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-slate-50/60">
+                <div className="flex items-center gap-2.5">
+                  {/* Mini equalizer */}
+                  <div className="flex items-end gap-[2px] h-4 w-6">
                     {isRecording ? (
-                      // Recording: Smooth equalizer bars with staggered organic motion
-                      [
-                        'animate-eq-1',
-                        'animate-eq-2',
-                        'animate-eq-3',
-                        'animate-eq-4',
-                        'animate-eq-5',
-                      ].map((anim, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            'w-[3px] rounded-full bg-primary-500/80 transition-colors duration-300',
-                            anim
-                          )}
-                          style={{ animationDelay: `${i * 0.15}s` }}
-                        />
+                      ['animate-eq-1','animate-eq-2','animate-eq-3','animate-eq-4','animate-eq-5'].map((anim, i) => (
+                        <div key={i} className={cn('w-[2.5px] rounded-full bg-primary-500/80', anim)} style={{ animationDelay: `${i * 0.15}s` }} />
                       ))
                     ) : isPaused ? (
-                      // Paused: Low static bars
                       [...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-[3px] rounded-full bg-amber-400/50 transition-all duration-700"
-                          style={{ height: '30%' }}
-                        />
+                        <div key={i} className="w-[2.5px] rounded-full bg-amber-400/50" style={{ height: '30%' }} />
                       ))
                     ) : (
-                      // Processing: Gentle sweep animation
                       [...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-[3px] rounded-full bg-primary-400/60 animate-process-sweep"
-                          style={{ animationDelay: `${i * 0.25}s` }}
-                        />
+                        <div key={i} className="w-[2.5px] rounded-full bg-primary-400/60 animate-process-sweep" style={{ animationDelay: `${i * 0.25}s` }} />
                       ))
                     )}
                   </div>
-
-                  {/* Recording indicator dot + Status Text */}
-                  <div className="flex items-center gap-2.5">
-                    {isRecording && (
-                      <span className="w-2 h-2 rounded-full bg-red-400 animate-breathe" />
-                    )}
-                    <div className="flex flex-col">
-                      <span className={cn(
-                        "text-[13px] font-semibold tracking-[-0.01em]",
-                        isPaused
-                          ? "text-amber-600"
-                          : isRecording
-                            ? "text-slate-700"
-                            : "text-slate-500"
-                      )}>
-                        {isPaused ? 'Pausado' : (isRecording ? 'Escuchando' : 'Procesando...')}
-                      </span>
-                      <span className="text-[10px] text-slate-400 tracking-wide">
-                        {isPaused ? 'Dictado detenido' : (isRecording ? 'Micrófono activo' : 'Altia AI')}
-                      </span>
-                    </div>
-                  </div>
+                  {isRecording && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-breathe" />}
+                  <span className={cn(
+                    "text-xs font-medium",
+                    isPaused ? "text-amber-600" : isRecording ? "text-slate-600" : "text-slate-400"
+                  )}>
+                    {isPaused ? 'Pausado' : isRecording ? 'Escuchando...' : 'Procesando...'}
+                  </span>
                 </div>
-
-                {/* Right: Actions (Pause / Finalize) */}
                 {(isRecording || isPaused) && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={isPaused ? toggleRecording : onPauseRecording}
                       className={cn(
-                        "p-2 rounded-lg transition-all duration-200",
-                        isPaused
-                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200/80"
-                          : "bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200/80"
+                        "p-1.5 rounded-md transition-all text-xs",
+                        isPaused ? "text-emerald-600 hover:bg-emerald-50" : "text-amber-600 hover:bg-amber-50"
                       )}
                       title={isPaused ? 'Reanudar' : 'Pausar'}
                     >
-                      {isPaused ? <Play size={15} /> : <Pause size={15} />}
+                      {isPaused ? <Play size={13} /> : <Pause size={13} />}
                     </button>
-
                     <button
                       onClick={onFinalizeRecording || onStopRecordingAndSend}
-                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200/80 rounded-lg transition-all duration-200"
+                      className="p-1.5 rounded-md text-rose-500 hover:bg-rose-50 transition-all"
                       title="Finalizar grabación"
                     >
-                      <Square size={13} fill="currentColor" />
+                      <Square size={11} fill="currentColor" />
                     </button>
                   </div>
                 )}

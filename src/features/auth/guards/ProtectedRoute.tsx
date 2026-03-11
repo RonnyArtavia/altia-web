@@ -13,7 +13,7 @@ export function ProtectedRoute({
   requiredRole,
   redirectTo = '/login',
 }: ProtectedRouteProps) {
-  const { user, userData, isInitializing } = useAuthStore()
+  const { user, userData, isInitializing, isPendingSecretary, canAccessSystemData } = useAuthStore()
   const location = useLocation()
 
   if (isInitializing) {
@@ -31,13 +31,34 @@ export function ProtectedRoute({
     return <Navigate to={redirectTo} state={{ from: location }} replace />
   }
 
+  // Check if secretary is pending approval
+  if (isPendingSecretary() && location.pathname !== '/assistant/pending-approval') {
+    console.log('🔄 ProtectedRoute: Redirecting pending secretary to approval page')
+    return <Navigate to="/assistant/pending-approval" replace />
+  }
+
+  // Check role-based access
   if (requiredRole && userData.role !== requiredRole) {
     if (userData.role === 'doctor') {
       return <Navigate to="/doctor/dashboard" replace />
     } else if (userData.role === 'secretary') {
+      // If secretary is pending, send to pending page
+      if (isPendingSecretary()) {
+        return <Navigate to="/assistant/pending-approval" replace />
+      }
       return <Navigate to="/assistant/dashboard" replace />
     }
     return <Navigate to="/login" replace />
+  }
+
+  // Additional check for secretaries accessing system data
+  if (userData.role === 'secretary' && !canAccessSystemData() && location.pathname !== '/assistant/pending-approval') {
+    console.log('🚫 ProtectedRoute: Secretary cannot access system data, redirecting to approval page', {
+      canAccess: canAccessSystemData(),
+      assistantStatus: userData.assistantStatus,
+      pathname: location.pathname
+    })
+    return <Navigate to="/assistant/pending-approval" replace />
   }
 
   if (userData.role !== 'doctor' && userData.role !== 'secretary') {

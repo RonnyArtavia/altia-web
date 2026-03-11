@@ -18,10 +18,7 @@ import {
   Sparkles,
   Stethoscope,
   User,
-  TestTube,
-  Pill,
-  Heart,
-  Settings
+  History,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -37,10 +34,6 @@ import { getPatientIPSData } from '../services/ipsService';
 import useMedicalCopilot from '../hooks/useMedicalCopilot';
 import { useClinicalGuard } from '../hooks/useClinicalGuard';
 import type {
-  ChatMessage,
-  ClinicalState,
-  SOAPData,
-  FHIRPlanItem,
   CopilotSuggestion,
   PatientRecordDisplay,
   TabItem,
@@ -48,7 +41,6 @@ import type {
   ConsultationEntry,
   VitalSignsData
 } from '../types/medical-notes';
-import { createEmptyClinicalState, normalizeSoapData } from '../types/medical-notes';
 import { getAIFHIRService } from '../../../services/aiService';
 import { IPSDashboardCompact } from '../components/IPSDashboardCompact';
 import { ChatPanelCopilot } from '../components/ChatPanelCopilot';
@@ -56,6 +48,9 @@ import { MainContentPanel } from '../components/MainContentPanel';
 import { SOAPCard } from '../components/SOAPCard';
 import { SafeguardsPanel } from '../components/SafeguardsPanel';
 import { useWebSpeechRecognition } from '../hooks/useWebSpeechRecognition';
+import { changeAppointmentStatus } from '@/features/schedule/services/appointmentService';
+import { PDFPreviewDialog, type PDFDocumentType } from '../components/PDFPreviewDialog';
+import { getTemplateConfig, type TemplateConfig } from '@/services/templateConfigService';
 
 interface MedicalNotesCopilotPageProps { }
 
@@ -104,6 +99,8 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
   const [searchParams] = useSearchParams();
   const appointmentId = searchParams.get('appointmentId');
   const patientId = searchParams.get('patientId');
+  const consultationMode = (searchParams.get('mode') || 'normal') as 'normal' | 'history';
+  const isHistoryMode = consultationMode === 'history';
   const { userData } = useAuthStore();
   const { patients, loadPatients } = usePatientStore();
 
@@ -117,6 +114,40 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     { id: 'resumen-clinico', title: 'Resumen Clínico', icon: <Stethoscope size={16} /> },
     { id: 'soap', title: 'Nota SOAP', icon: <FileText size={16} /> },
   ]);
+
+  // Chat panel position & width (resizable)
+  const [chatOnLeft, setChatOnLeft] = useState(true);
+  const [chatWidth, setChatWidth] = useState(520);
+  const isResizingRef = useRef(false);
+
+  const toggleChatPosition = useCallback(() => {
+    setChatOnLeft(prev => !prev);
+  }, []);
+
+  const handleChatResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    const startX = e.clientX;
+    const startW = chatWidth;
+
+    const onMove = (ev: MouseEvent) => {
+      // When chat is on the left, dragging right = wider; on the right, dragging left = wider
+      const delta = chatOnLeft ? ev.clientX - startX : startX - ev.clientX;
+      const next = Math.max(360, Math.min(800, startW + delta));
+      setChatWidth(next);
+    };
+    const onUp = () => {
+      isResizingRef.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [chatWidth, chatOnLeft]);
 
   // Initialize state first before hooks that use them
   const [patientRecord, setPatientRecord] = useState<PatientRecordDisplay | undefined>(undefined);
@@ -132,7 +163,12 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     isProcessing: aiProcessing,
     soap,
     fhirPlan,
-    clinicalState
+    clinicalState,
+    addFhirPlanItem,
+    removeFhirPlanItem,
+    updateFhirPlanItem,
+    approveSuggestion,
+    updateSoapSection,
   } = useMedicalCopilot({
     patientRecord,
     patientIPS: ipsData,
@@ -141,6 +177,7 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
       console.error('Medical copilot error:', error);
     }
   });
+
 
   // Clinical Guards for real-time safety alerts
   const clinicalGuard = useClinicalGuard(inputText, ipsData || {
@@ -510,10 +547,34 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           notes: item.notes || item.code
         }));
 
+      // Get new family history from FHIR plan
+      const newFamilyHistory = fhirPlan
+        .filter(item => item.type === 'familyHistory')
+        .map(item => ({
+          name: item.display || item.text || 'Antecedente familiar',
+          relationship: item.relationship,
+          date: new Date().toLocaleDateString(),
+          doctor: 'Dr. Actual',
+          notes: item.notes
+        }));
+
+      // Get new personal history from FHIR plan
+      const newPersonalHistory = fhirPlan
+        .filter(item => item.type === 'personalHistory')
+        .map(item => ({
+          name: item.display || item.text || 'Antecedente personal',
+          category: item.category,
+          date: new Date().toLocaleDateString(),
+          doctor: 'Dr. Actual',
+          notes: item.notes
+        }));
+
       // Merge with existing data, avoiding duplicates by name
       const existingMedNames = new Set((prev.medications || []).map(m => m.name));
       const existingAllergyNames = new Set((prev.allergies || []).map(a => a.name));
       const existingConditionNames = new Set((prev.conditions || []).map(c => c.name));
+      const existingFamilyNames = new Set((prev.familyHistory || []).map(f => f.name));
+      const existingPersonalNames = new Set((prev.personalHistory || []).map(p => p.name));
 
       return {
         ...prev,
@@ -528,6 +589,14 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         conditions: [
           ...(prev.conditions || []),
           ...newConditions.filter(condition => !existingConditionNames.has(condition.name))
+        ],
+        familyHistory: [
+          ...(prev.familyHistory || []),
+          ...newFamilyHistory.filter(fh => !existingFamilyNames.has(fh.name))
+        ],
+        personalHistory: [
+          ...(prev.personalHistory || []),
+          ...newPersonalHistory.filter(ph => !existingPersonalNames.has(ph.name))
         ]
       };
     });
@@ -550,21 +619,35 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
   }
 
   const tabs = openTabs;
-  const updateSoapSection = (section: keyof SOAPData, value: string) => {
-    setClinicalState(prev => ({
-      ...prev,
-      soap: {
-        ...prev.soap,
-        [section]: value
-      }
-    }));
-  };
 
   const handleBack = () => {
     navigate('/doctor/patients');
   };
 
 
+
+  // ─── PDF Generation ──────────────────────────────────────
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
+  const [pdfDocType, setPdfDocType] = useState<PDFDocumentType>('prescription')
+  const [templateConfig, setTemplateConfig] = useState<TemplateConfig | null>(null)
+
+  // Load template config once
+  useEffect(() => {
+    const orgId = userData?.organizationId
+    if (!orgId) return
+    getTemplateConfig(orgId).then(setTemplateConfig).catch(console.error)
+  }, [userData?.organizationId])
+
+  const handleGeneratePDF = useCallback((type: PDFDocumentType) => {
+    setPdfDocType(type)
+    setPdfDialogOpen(true)
+  }, [])
+
+  const pdfItems = (() => {
+    if (pdfDocType === 'prescription') return fhirPlan.filter(i => i.type === 'medication' && i.approved !== false)
+    if (pdfDocType === 'labOrder') return fhirPlan.filter(i => (i.type === 'labOrder' || i.type === 'order') && i.approved !== false)
+    return fhirPlan.filter(i => i.type === 'referral' && i.approved !== false)
+  })()
 
   const finalizeConsultation = () => {
     setInConsultation(false);
@@ -577,32 +660,150 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     setIsPaused(false);
   };
 
-  // Handle sending messages — combines buffer + typed text (same as original)
-  // silentMode: When true, suppress user message display (used for auto-flush streaming)
-  const handleSendMessage = useCallback(async (silentMode: boolean = false) => {
-    const bufferText = dictationBuffer.current;
-    const combinedVoice = bufferText ? bufferText.trim() : '';
-    const finalText = `${inputText} ${combinedVoice}`.trim();
+  // FHIR category status — lifted state for voice command sync
+  const [fhirCategoryStatus, setFhirCategoryStatus] = useState<Record<string, 'pending' | 'approved' | 'rejected'>>({});
 
-    if (!finalText) return;
+  // Reset status when new items are added
+  const prevFhirLenRef = useRef(fhirPlan.length);
+  useEffect(() => {
+    if (fhirPlan.length > prevFhirLenRef.current) {
+      setFhirCategoryStatus({});
+    }
+    prevFhirLenRef.current = fhirPlan.length;
+  }, [fhirPlan.length]);
 
-    // Start consultation on first message
-    if (!inConsultation && finalText) {
-      console.log('🚀 Starting consultation...');
-      setInConsultation(true);
-      setConsultationStartTime(Date.now());
+  // Handle FHIR category approval / rejection
+  const handleApproveFhirItems = useCallback((type: 'medications' | 'labOrders' | 'referrals') => {
+    setFhirCategoryStatus(prev => ({ ...prev, [type]: 'approved' }));
+    console.log('Doctor approved FHIR category:', type);
+  }, []);
+
+  const handleRejectFhirItems = useCallback((type: 'medications' | 'labOrders' | 'referrals') => {
+    setFhirCategoryStatus(prev => ({ ...prev, [type]: 'rejected' }));
+    const typeMap: Record<string, string[]> = {
+      medications: ['medication'],
+      labOrders: ['labOrder', 'order'],
+      referrals: ['referral'],
+    };
+    const removeTypes = typeMap[type] || [];
+    const toRemove = fhirPlan.filter(item => removeTypes.includes(item.type));
+
+    // Limpiar lineas del SOAP plan que correspondan a los items rechazados
+    if (toRemove.length > 0 && soap.plan) {
+      const searchTerms = toRemove
+        .map(item => (item.display || item.text || '').trim().toLowerCase())
+        .filter(Boolean);
+      if (searchTerms.length > 0) {
+        const cleanedPlan = soap.plan
+          .split('\n')
+          .filter(line => {
+            const lower = line.toLowerCase();
+            return !searchTerms.some(term => lower.includes(term));
+          })
+          .join('\n')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+        updateSoapSection('plan', cleanedPlan);
+        updateSoapSection('p', cleanedPlan);
+      }
     }
 
-    // Clear everything
-    setInputText('');
-    dictationBuffer.current = '';
-    setBufferCharCount(0);
-    resetTranscript();
+    toRemove.forEach(item => removeFhirPlanItem(item.id));
+  }, [fhirPlan, removeFhirPlanItem, soap.plan, updateSoapSection]);
 
-    // Send the combined text directly (pass as argument to avoid React state race)
-    console.log('📨 Sending message:', finalText);
-    await sendMessage(finalText, { silentMode });
-  }, [inputText, inConsultation, resetTranscript, sendMessage]);
+  // Voice command detection for approve/reject
+  const detectVoiceAction = useCallback((text: string): { action: 'approve' | 'reject'; category: 'medications' | 'labOrders' | 'referrals'; remaining: string } | null => {
+    const lower = text.toLowerCase().trim();
+
+    const patterns: { re: RegExp; action: 'approve' | 'reject'; category: 'medications' | 'labOrders' | 'referrals' }[] = [
+      // Approve patterns
+      { re: /\b(aprobar|apruebo|aprueba|confirmar|confirmo|acepto|aceptar)\b.*\b(receta|medicamento|medicamentos|prescripci[oó]n)\b/, action: 'approve', category: 'medications' },
+      { re: /\b(receta|medicamento|medicamentos|prescripci[oó]n)\b.*\b(aprobad[oa]|confirmad[oa]|aceptad[oa])\b/, action: 'approve', category: 'medications' },
+      { re: /\b(aprobar|apruebo|aprueba|confirmar|confirmo|acepto|aceptar)\b.*\b(laboratorio|lab|examen|ex[aá]menes|orden de lab)\b/, action: 'approve', category: 'labOrders' },
+      { re: /\b(laboratorio|lab|examen|ex[aá]menes|orden de lab)\b.*\b(aprobad[oa]|confirmad[oa]|aceptad[oa])\b/, action: 'approve', category: 'labOrders' },
+      { re: /\b(aprobar|apruebo|aprueba|confirmar|confirmo|acepto|aceptar)\b.*\b(referencia|interconsulta|derivaci[oó]n)\b/, action: 'approve', category: 'referrals' },
+      { re: /\b(referencia|interconsulta|derivaci[oó]n)\b.*\b(aprobad[oa]|confirmad[oa]|aceptad[oa])\b/, action: 'approve', category: 'referrals' },
+      // Reject patterns
+      { re: /\b(rechazar|rechazo|rechaza|cancelar|cancelo|eliminar|elimino|quitar|quito)\b.*\b(receta|medicamento|medicamentos|prescripci[oó]n)\b/, action: 'reject', category: 'medications' },
+      { re: /\b(receta|medicamento|medicamentos|prescripci[oó]n)\b.*\b(rechazad[oa]|cancelad[oa]|eliminad[oa])\b/, action: 'reject', category: 'medications' },
+      { re: /\b(rechazar|rechazo|rechaza|cancelar|cancelo|eliminar|elimino|quitar|quito)\b.*\b(laboratorio|lab|examen|ex[aá]menes|orden de lab)\b/, action: 'reject', category: 'labOrders' },
+      { re: /\b(laboratorio|lab|examen|ex[aá]menes|orden de lab)\b.*\b(rechazad[oa]|cancelad[oa]|eliminad[oa])\b/, action: 'reject', category: 'labOrders' },
+      { re: /\b(rechazar|rechazo|rechaza|cancelar|cancelo|eliminar|elimino|quitar|quito)\b.*\b(referencia|interconsulta|derivaci[oó]n)\b/, action: 'reject', category: 'referrals' },
+      { re: /\b(referencia|interconsulta|derivaci[oó]n)\b.*\b(rechazad[oa]|cancelad[oa]|eliminad[oa])\b/, action: 'reject', category: 'referrals' },
+    ];
+
+    for (const { re, action, category } of patterns) {
+      const match = lower.match(re);
+      if (match) {
+        // Remove the matched command from the text
+        const remaining = text.replace(new RegExp(re.source, 'i'), '').replace(/\s{2,}/g, ' ').trim();
+        return { action, category, remaining };
+      }
+    }
+    return null;
+  }, []);
+
+  // Process text: detect voice actions (approve/reject), then send remaining to AI
+  const processTextWithVoiceActions = useCallback((text: string): string => {
+    const voiceAction = detectVoiceAction(text);
+    if (!voiceAction) return text;
+
+    // Execute the detected action
+    if (voiceAction.action === 'approve') {
+      handleApproveFhirItems(voiceAction.category);
+    } else {
+      handleRejectFhirItems(voiceAction.category);
+    }
+
+    return voiceAction.remaining;
+  }, [detectVoiceAction, handleApproveFhirItems, handleRejectFhirItems]);
+
+  // Handle sending messages — combines buffer + typed text
+  // silentMode: When true, only send dictation buffer without touching inputText (auto-flush streaming)
+  const handleSendMessage = useCallback(async (silentMode: boolean = false) => {
+    const bufferText = dictationBuffer.current;
+
+    if (silentMode) {
+      const voiceText = bufferText ? bufferText.trim() : '';
+      if (!voiceText) return;
+
+      if (!inConsultation) {
+        setInConsultation(true);
+        setConsultationStartTime(Date.now());
+      }
+
+      dictationBuffer.current = '';
+      setBufferCharCount(0);
+      resetTranscript();
+
+      // Check for voice actions before sending to AI
+      const remaining = processTextWithVoiceActions(voiceText);
+      if (remaining) {
+        await sendMessage(remaining, { silentMode });
+      }
+    } else {
+      const combinedVoice = bufferText ? bufferText.trim() : '';
+      const finalText = `${inputText} ${combinedVoice}`.trim();
+
+      if (!finalText) return;
+
+      if (!inConsultation) {
+        setInConsultation(true);
+        setConsultationStartTime(Date.now());
+      }
+
+      setInputText('');
+      dictationBuffer.current = '';
+      setBufferCharCount(0);
+      resetTranscript();
+
+      // Check for voice actions before sending to AI
+      const remaining = processTextWithVoiceActions(finalText);
+      if (remaining) {
+        await sendMessage(remaining, { silentMode });
+      }
+    }
+  }, [inputText, inConsultation, resetTranscript, sendMessage, processTextWithVoiceActions]);
 
   // Ref for latest handleSendMessage (for streaming auto-flush)
   const sendRef = useRef(handleSendMessage);
@@ -610,22 +811,38 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     sendRef.current = handleSendMessage;
   }, [handleSendMessage]);
 
-  // Handle stop recording and send (same as original)
+  // Handle stop recording and send
   // silentMode defaults to true for streaming, false for finalize
   const handleStopRecordingAndSend = useCallback(async (silentMode: boolean = true) => {
     const bufferText = dictationBuffer.current;
     const combinedVoice = bufferText
       ? `${bufferText} ${interimTranscript || ''}`.trim()
       : (interimTranscript || '').trim();
-    const finalText = `${inputText} ${combinedVoice}`.trim();
 
     // Stop recording
     stopRecording();
     setIsPaused(false);
 
-    // Send if there's text
-    if (finalText) {
-      // Start consultation on first message
+    if (silentMode) {
+      // Auto-flush: only send voice content, preserve inputText
+      if (!combinedVoice) return;
+
+      if (!inConsultation) {
+        setInConsultation(true);
+        setConsultationStartTime(Date.now());
+      }
+      dictationBuffer.current = '';
+      setBufferCharCount(0);
+      resetTranscript();
+      const remaining = processTextWithVoiceActions(combinedVoice);
+      if (remaining) {
+        await sendMessage(remaining, { silentMode });
+      }
+    } else {
+      // Explicit finalize: combine typed + voice
+      const finalText = `${inputText} ${combinedVoice}`.trim();
+      if (!finalText) return;
+
       if (!inConsultation) {
         setInConsultation(true);
         setConsultationStartTime(Date.now());
@@ -634,10 +851,12 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
       dictationBuffer.current = '';
       setBufferCharCount(0);
       resetTranscript();
-      // Send via copilot (pass text directly to avoid React state race)
-      await sendMessage(finalText, { silentMode });
+      const remaining = processTextWithVoiceActions(finalText);
+      if (remaining) {
+        await sendMessage(remaining, { silentMode });
+      }
     }
-  }, [inputText, interimTranscript, stopRecording, resetTranscript, sendMessage, inConsultation]);
+  }, [inputText, interimTranscript, stopRecording, resetTranscript, sendMessage, inConsultation, processTextWithVoiceActions]);
 
   // Handle Pause: Stop recording + process text + set paused UI state (same as original)
   const handlePauseRecording = useCallback(async () => {
@@ -710,38 +929,9 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     console.log('🔄 Clinical state updated:', clinicalState);
   }, [clinicalState]);
 
-  // Handle suggestion approval
   const handleApproveSuggestion = useCallback((suggestion: CopilotSuggestion) => {
-    console.log('✅ Suggestion approved:', suggestion);
-
-    // Add approved suggestion to clinical state based on type
-    if (suggestion.type === 'diagnosis' || suggestion.type === 'medication') {
-      setClinicalState(prev => ({
-        ...prev,
-        fhir: [
-          ...prev.fhir,
-          {
-            id: suggestion.id,
-            type: suggestion.type === 'diagnosis' ? 'condition' : 'medication',
-            status: 'active',
-            text: suggestion.title,
-            display: suggestion.title,
-            details: suggestion.description
-          }
-        ]
-      }));
-    }
-
-    // Show success message
-    const successMessage: ChatMessage = {
-      id: (Date.now()).toString(),
-      role: 'assistant',
-      content: `✅ Sugerencia aplicada: ${suggestion.title}`,
-      timestamp: new Date(),
-      mode: 'note'
-    };
-    setMessages(prev => [...prev, successMessage]);
-  }, []);
+    approveSuggestion(suggestion);
+  }, [approveSuggestion]);
 
   // Mobile layout
   if (layoutInfo.isMobile) {
@@ -763,6 +953,7 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
             inConsultation={inConsultation}
             onFinalize={finalizeConsultation}
             isProcessing={aiProcessing}
+            onGeneratePDF={handleGeneratePDF}
           />
         </div>
 
@@ -795,6 +986,11 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
                 onFinalize={finalizeConsultation}
                 elapsedTime={elapsedTime}
                 onApproveSuggestion={handleApproveSuggestion}
+                onRemoveFhirItem={removeFhirPlanItem}
+                onApproveFhirItems={handleApproveFhirItems}
+                onRejectFhirItems={handleRejectFhirItems}
+                fhirPlan={fhirPlan}
+                fhirCategoryStatus={fhirCategoryStatus}
                 ipsData={ipsData}
                 patientInfo={patientRecord ? `${patientRecord.age} años • ${patientRecord.gender}` : undefined}
               />
@@ -807,7 +1003,33 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
 
   // Desktop layout
   return (
-    <div className="h-screen flex bg-gray-50 overflow-hidden">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+      {/* History mode banner */}
+      {isHistoryMode && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm shrink-0">
+          <History className="h-4 w-4" />
+          <span className="font-medium">Modo historial — Solo lectura</span>
+          <span className="text-amber-600">Navegando el historial del paciente sin consulta activa</span>
+          {appointmentId && (
+            <button
+              className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+              onClick={async () => {
+                if (!userData?.uid || !appointmentId) return
+                try {
+                  await changeAppointmentStatus(appointmentId, userData.organizationId || '', 'in-progress', userData.uid, 'doctor')
+                } catch { }
+                const newParams = new URLSearchParams(searchParams)
+                newParams.delete('mode')
+                navigate(`?${newParams.toString()}`, { replace: true })
+              }}
+            >
+              <Stethoscope className="h-3.5 w-3.5" />
+              Iniciar atención
+            </button>
+          )}
+        </div>
+      )}
+    <div className={`flex flex-1 overflow-hidden ${chatOnLeft ? 'flex-row' : 'flex-row-reverse'}`}>
       {/* Main Content */}
       <div className="flex-1 min-w-0">
         <MainContentPanel
@@ -825,40 +1047,65 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           inConsultation={inConsultation}
           onFinalize={finalizeConsultation}
           isProcessing={aiProcessing}
+          onGeneratePDF={handleGeneratePDF}
         />
       </div>
 
-      {/* Chat Panel - Matches original: direct child, full height, no extra wrapper */}
-      <div style={{ width: 400 }} className="h-full">
+      {/* Chat Panel — resizable, position toggleable */}
+      <div style={{ width: chatWidth }} className="h-full shrink-0">
         <ChatPanelCopilot
-          width={400}
-          onResize={() => { }}
-          isRight={true}
-          togglePosition={() => { }}
+          width={chatWidth}
+          onResize={handleChatResize}
+          isRight={!chatOnLeft}
+          togglePosition={toggleChatPosition}
           messages={messages}
           inputText={inputText}
           setInputText={setInputText}
           onSendMessage={handleSendMessage}
-          isRecording={isRecording}
-          toggleRecording={handleStartRecording}
-          onStopRecordingAndSend={handleStopRecordingAndSend}
-          onPauseRecording={handlePauseRecording}
-          onFinalizeRecording={handleFinalizeRecording}
+          isRecording={isHistoryMode ? false : isRecording}
+          toggleRecording={isHistoryMode ? async () => {} : handleStartRecording}
+          onStopRecordingAndSend={isHistoryMode ? async () => {} : handleStopRecordingAndSend}
+          onPauseRecording={isHistoryMode ? async () => {} : handlePauseRecording}
+          onFinalizeRecording={isHistoryMode ? async () => {} : handleFinalizeRecording}
           isPaused={isPaused}
           interimTranscript={interimTranscript}
-          speechSupported={speechSupported}
+          speechSupported={isHistoryMode ? false : speechSupported}
           bufferCharCount={bufferCharCount}
           onPlayAudio={() => { }}
           isPlayingAudio={false}
           isProcessing={aiProcessing}
-          inConsultation={inConsultation}
+          inConsultation={isHistoryMode ? false : inConsultation}
           onFinalize={finalizeConsultation}
           elapsedTime={elapsedTime}
           onApproveSuggestion={handleApproveSuggestion}
+          onRemoveFhirItem={removeFhirPlanItem}
+          onApproveFhirItems={handleApproveFhirItems}
+          onRejectFhirItems={handleRejectFhirItems}
+          fhirPlan={fhirPlan}
+          fhirCategoryStatus={fhirCategoryStatus}
           ipsData={ipsData}
           patientInfo={patientRecord ? `${patientRecord.age} años • ${patientRecord.gender}` : undefined}
         />
       </div>
+    </div>
+
+    {/* PDF Preview Dialog */}
+    {templateConfig && (
+      <PDFPreviewDialog
+        open={pdfDialogOpen}
+        onClose={() => setPdfDialogOpen(false)}
+        type={pdfDocType}
+        items={pdfItems}
+        config={templateConfig}
+        patientName={patientRecord?.name || 'Paciente'}
+        patientAge={patientRecord?.age ? `${patientRecord.age} años` : undefined}
+        patientGender={patientRecord?.gender}
+        patientEmail={patientData?.email}
+        patientPhone={patientData?.phone}
+        organizationId={userData?.organizationId}
+        doctorUid={userData?.uid}
+      />
+    )}
     </div>
   );
 }
