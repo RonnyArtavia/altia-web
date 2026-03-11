@@ -14,7 +14,9 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Stethoscope
+  Stethoscope,
+  Phone,
+  Mail
 } from 'lucide-react';
 import type {
   IPSDisplayData,
@@ -279,8 +281,22 @@ function PatientHeader({
               {patient?.name || 'Paciente'}
             </h1>
             {patient && (
-              <div className="text-sm text-slate-500">
-                {patient.age} años • {patient.gender}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
+                <span>{patient.age} años</span>
+                <span>•</span>
+                <span>{patient.gender}</span>
+                {patient.phone && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1"><Phone size={13} className="text-slate-400" />{patient.phone}</span>
+                  </>
+                )}
+                {patient.email && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1"><Mail size={13} className="text-slate-400" />{patient.email}</span>
+                  </>
+                )}
               </div>
             )}
           </div>

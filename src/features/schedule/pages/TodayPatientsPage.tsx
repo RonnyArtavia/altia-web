@@ -84,7 +84,7 @@ export default function TodayPatientsPage() {
                             <Stethoscope className="h-6 w-6 text-blue-600" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-gray-900">Pacientes de hoy</h1>
+                            <h1 className="text-xl font-bold text-gray-900">Consultas diarias</h1>
                             <p className="text-sm text-gray-500 capitalize">
                                 {format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
                             </p>
@@ -210,7 +210,7 @@ export default function TodayPatientsPage() {
                                                 {startingId === apt.id ? (
                                                     <><Spinner size="sm" className="mr-1.5" />Iniciando...</>
                                                 ) : (
-                                                    <><Stethoscope className="h-4 w-4 mr-1.5" />Iniciar atención</>
+                                                    <><Stethoscope className="h-4 w-4 mr-1.5" />Perfil Clínico</>
                                                 )}
                                             </Button>
                                         )}

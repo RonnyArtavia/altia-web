@@ -351,7 +351,7 @@ export default function PatientsPage() {
                           className="text-primary font-medium"
                         >
                           <Stethoscope className="mr-2 h-4 w-4" />
-                          Iniciar Consulta
+                          Perfil Clínico
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => handleEditPatient(patient, e)}>
                           <Edit className="mr-2 h-4 w-4" />

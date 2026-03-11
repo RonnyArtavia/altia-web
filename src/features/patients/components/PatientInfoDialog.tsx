@@ -299,7 +299,7 @@ export function PatientInfoDialog({
               size="lg"
             >
               <Stethoscope className="h-5 w-5" />
-              {isStartingConsultation ? 'Iniciando consulta...' : 'Iniciar Consulta'}
+              {isStartingConsultation ? 'Abriendo perfil...' : 'Perfil Clínico'}
             </Button>
 
             <Button

@@ -132,6 +132,8 @@ export interface PatientRecordDisplay {
   genderShort?: string;
   photoUrl?: string;
   fhirId?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface TabItem {

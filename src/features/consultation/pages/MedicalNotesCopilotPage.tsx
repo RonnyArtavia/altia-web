@@ -315,7 +315,9 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         genderShort: patientData.gender === 'male' ? 'M' :
           patientData.gender === 'female' ? 'F' : 'N/E',
         photoUrl: patientData.photoURL || '',
-        fhirId: patientId!
+        fhirId: patientId!,
+        phone: patientData.phone || '',
+        email: patientData.email || '',
       });
 
       // Debug: Check what data we're getting
