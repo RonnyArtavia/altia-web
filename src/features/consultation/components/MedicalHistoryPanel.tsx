@@ -344,6 +344,9 @@ export function MedicalHistoryPanel({ ipsData, patientRecord }: MedicalHistoryPa
   return (
     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
+      {/* ── Hero Title ── */}
+      <h2 className="text-[36px] font-black text-amber-400 leading-none tracking-tight">Antecedentes</h2>
+
       {/* ── Header ── */}
       <div className="flex items-center gap-2.5 mb-2">
         <div className="p-1.5 bg-teal-100 rounded-lg">

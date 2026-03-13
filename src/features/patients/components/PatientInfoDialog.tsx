@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, Mail, Phone, MapPin, Calendar,
-  Edit, Stethoscope, X, Heart, AlertCircle, Copy, ExternalLink
+  Edit, Stethoscope, X, Heart, AlertCircle, Copy, ExternalLink,
+  Activity, Pill, AlertTriangle, FlaskConical, ClipboardList, ShieldAlert, Loader2
 } from 'lucide-react'
 import {
   Dialog,
@@ -16,7 +17,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { useAuthStore } from '@/features/auth/stores/authStore'
 import { createAppointment } from '@/features/schedule/services/appointmentService'
-import type { Patient } from '../types/patient'
+import {
+  getPatientMedicalHistory,
+  getPatientMedications,
+  getPatientAllergies,
+  getPatientEncounters,
+} from '../services/patientService'
+import type { Patient, PatientMedicalHistory, PatientMedication, PatientAllergy, PatientEncounter } from '../types/patient'
 
 interface PatientInfoDialogProps {
   patient: Patient | null
@@ -36,6 +43,50 @@ export function PatientInfoDialog({
   const navigate = useNavigate()
   const { userData } = useAuthStore()
   const [isStartingConsultation, setIsStartingConsultation] = useState(false)
+
+  // ── Clinical data fetched from FHIR ──
+  const [clinicalLoading, setClinicalLoading] = useState(false)
+  const [conditions, setConditions] = useState<PatientMedicalHistory[]>([])
+  const [medications, setMedications] = useState<PatientMedication[]>([])
+  const [allergies, setAllergies] = useState<PatientAllergy[]>([])
+  const [lastEncounter, setLastEncounter] = useState<PatientEncounter | null>(null)
+
+  useEffect(() => {
+    if (!isOpen || !patient?.id || !userData?.organizationId) {
+      setConditions([])
+      setMedications([])
+      setAllergies([])
+      setLastEncounter(null)
+      return
+    }
+
+    let cancelled = false
+    const fetchClinicalData = async () => {
+      setClinicalLoading(true)
+      try {
+        const orgId = userData.organizationId!
+        const [conds, meds, allgs, encounters] = await Promise.all([
+          getPatientMedicalHistory(patient.id, orgId, 10),
+          getPatientMedications(patient.id, orgId, true),
+          getPatientAllergies(patient.id, orgId),
+          getPatientEncounters(patient.id, orgId, 1),
+        ])
+        if (!cancelled) {
+          setConditions(conds)
+          setMedications(meds)
+          setAllergies(allgs)
+          setLastEncounter(encounters.length > 0 ? encounters[0] : null)
+        }
+      } catch (err) {
+        console.warn('Error fetching clinical data for dialog:', err)
+      } finally {
+        if (!cancelled) setClinicalLoading(false)
+      }
+    }
+
+    fetchClinicalData()
+    return () => { cancelled = true }
+  }, [isOpen, patient?.id, userData?.organizationId])
 
   if (!patient) return null
 
@@ -157,21 +208,153 @@ export function PatientInfoDialog({
           </div>
         </div>
 
-        <div className="space-y-6 max-h-[60vh] overflow-y-auto">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
-              <div className="text-2xl font-bold text-blue-600 mb-1">{calculateAge(patient.birthDate)}</div>
-              <div className="text-xs text-blue-600/70 uppercase tracking-wide">Edad</div>
+        <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
+          {/* ── Mini IPS – Resumen Clínico ── */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <ClipboardList className="h-5 w-5 text-indigo-500" />
+              <h4 className="font-black text-lg text-gray-900 tracking-tight">Resumen Clínico IPS</h4>
+              {clinicalLoading && (
+                <Loader2 className="h-4 w-4 text-indigo-400 animate-spin ml-auto" />
+              )}
             </div>
-            <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl">
-              <div className="text-2xl font-bold text-purple-600 mb-1">{getGenderLabel(patient.gender)?.charAt(0) || '?'}</div>
-              <div className="text-xs text-purple-600/70 uppercase tracking-wide">Género</div>
+
+            {/* Diagnósticos – from FHIR conditions */}
+            <div className="rounded-xl border-l-4 border-blue-500 bg-gradient-to-r from-blue-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="h-4 w-4 text-blue-600" />
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Diagnósticos Activos</span>
+                {conditions.length > 0 && (
+                  <Badge className="ml-auto bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0">
+                    {conditions.length}
+                  </Badge>
+                )}
+              </div>
+              {clinicalLoading ? (
+                <div className="flex gap-2">
+                  <div className="h-5 w-24 bg-blue-100 rounded animate-pulse" />
+                  <div className="h-5 w-32 bg-blue-100 rounded animate-pulse" />
+                </div>
+              ) : conditions.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {conditions.map((cond) => (
+                    <Badge key={cond.id} variant="secondary" className="bg-blue-100/80 text-blue-800 border-blue-200/60 text-xs font-medium">
+                      {cond.condition}
+                      {cond.status === 'active' && (
+                        <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">Sin diagnósticos registrados</p>
+              )}
             </div>
-            <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl">
-              <div className="text-2xl font-bold text-green-600 mb-1">👤</div>
-              <div className="text-xs text-green-600/70 uppercase tracking-wide">Activo</div>
+
+            {/* Medicamentos – from FHIR medication statements */}
+            <div className="rounded-xl border-l-4 border-emerald-500 bg-gradient-to-r from-emerald-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Pill className="h-4 w-4 text-emerald-600" />
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Medicamentos</span>
+                {medications.length > 0 && (
+                  <Badge className="ml-auto bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] px-1.5 py-0">
+                    {medications.length}
+                  </Badge>
+                )}
+              </div>
+              {clinicalLoading ? (
+                <div className="flex gap-2">
+                  <div className="h-5 w-28 bg-emerald-100 rounded animate-pulse" />
+                  <div className="h-5 w-20 bg-emerald-100 rounded animate-pulse" />
+                </div>
+              ) : medications.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {medications.map((med) => (
+                    <Badge key={med.id} variant="secondary" className="bg-emerald-100/80 text-emerald-800 border-emerald-200/60 text-xs font-medium">
+                      {med.name}
+                      {med.dose && <span className="text-emerald-600/70 ml-1">({med.dose})</span>}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">Sin medicamentos registrados</p>
+              )}
             </div>
+
+            {/* Alergias – from FHIR allergy intolerances */}
+            <div className="rounded-xl border-l-4 border-rose-500 bg-gradient-to-r from-rose-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldAlert className="h-4 w-4 text-rose-600" />
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-600">Alergias</span>
+                {allergies.length > 0 && (
+                  <Badge className="ml-auto bg-rose-100 text-rose-700 border-rose-200 text-[10px] px-1.5 py-0">
+                    {allergies.length}
+                  </Badge>
+                )}
+              </div>
+              {clinicalLoading ? (
+                <div className="flex gap-2">
+                  <div className="h-5 w-24 bg-rose-100 rounded animate-pulse" />
+                  <div className="h-5 w-20 bg-rose-100 rounded animate-pulse" />
+                </div>
+              ) : allergies.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {allergies.map((allergy) => (
+                    <Badge key={allergy.id} variant="secondary" className="bg-rose-100/80 text-rose-800 border-rose-200/60 text-xs font-medium">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      {allergy.allergen}
+                      {allergy.severity === 'severe' && (
+                        <span className="ml-1 text-[9px] font-bold text-rose-600">⚠ SEVERA</span>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">Sin alergias conocidas (NKDA)</p>
+              )}
+            </div>
+
+            {/* Última consulta */}
+            {!clinicalLoading && lastEncounter && (
+              <div className="rounded-xl border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-white p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Stethoscope className="h-4 w-4 text-violet-600" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-violet-600">Última Consulta</span>
+                  <span className="ml-auto text-[10px] text-violet-500 font-medium">
+                    {lastEncounter.date instanceof Date
+                      ? lastEncounter.date.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : new Date(lastEncounter.date).toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {lastEncounter.diagnosis && (
+                    <p className="text-xs text-violet-800">
+                      <span className="font-semibold">Dx:</span> {lastEncounter.diagnosis}
+                    </p>
+                  )}
+                  {lastEncounter.notes && (
+                    <p className="text-xs text-violet-700 line-clamp-2">{lastEncounter.notes}</p>
+                  )}
+                  <p className="text-[10px] text-violet-500">
+                    {lastEncounter.doctorName} · {lastEncounter.type === 'consultation' ? 'Consulta' : lastEncounter.type === 'telemedicine' ? 'Telemedicina' : lastEncounter.type === 'emergency' ? 'Emergencia' : 'Seguimiento'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Sin datos clínicos - mensaje global */}
+            {!clinicalLoading &&
+             conditions.length === 0 &&
+             medications.length === 0 &&
+             allergies.length === 0 && (
+              <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <AlertCircle className="h-5 w-5 text-amber-500" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">Sin historial clínico</p>
+                  <p className="text-xs text-amber-600">Inicie una consulta para registrar datos clínicos del paciente</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Contact Info - Modern Cards */}

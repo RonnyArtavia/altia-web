@@ -151,7 +151,7 @@ export default function DoctorDashboard() {
         <div className="relative z-10">
           <p className="text-primary-100 text-xs font-bold uppercase tracking-widest mb-3 opacity-90">{getGreeting()}</p>
           <h1 className="text-4xl font-extrabold mt-1 tracking-tight">
-            Dr. {data?.doctor.name || userData?.name || 'Doctor'}
+            {data?.doctor.name || userData?.name || 'Doctor'}
           </h1>
           <p className="text-primary-100 text-base mt-3 flex items-center gap-2 font-medium">
             <Stethoscope className="w-5 h-5 opacity-80" /> {data?.doctor.specialty || 'Medicina General'}

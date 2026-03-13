@@ -292,7 +292,7 @@ export function useDoctor(options: { doctorId: string; organizationId: string; e
 
     return {
       id: options.doctorId,
-      name: userData?.name || 'Dr. Usuario',
+      name: userData?.name || 'Usuario',
       specialization: 'Medicina General',
       schedule: {
         monday: { start: '08:00', end: '18:00', breakStart: '12:00', breakEnd: '13:00' },

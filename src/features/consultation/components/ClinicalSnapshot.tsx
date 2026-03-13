@@ -505,59 +505,155 @@ export function ClinicalSnapshot({
 
         {/* Nota Clínica SOAP */}
         <div style={{
-          borderLeft: "3px solid #94a3b8",
-          paddingLeft: "16px",
-          margin: "24px 0"
+          background: 'linear-gradient(135deg, #fafbff 0%, #f8fafc 100%)',
+          borderRadius: '20px',
+          padding: '28px',
+          margin: '24px 0',
+          border: '1px solid #e8ecf4',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <NotebookPen size={15} color="#64748b" strokeWidth={1.8} />
-            <h2 style={{ ...s.h2, color: "#475569", margin: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
+            <NotebookPen size={18} color="#6366f1" strokeWidth={2} />
+            <h2 style={{
+              fontSize: '18px',
+              fontWeight: 800,
+              color: '#334155',
+              margin: 0,
+              fontFamily: "'DM Sans', sans-serif",
+              letterSpacing: '-0.02em',
+            }}>
               Nota Clínica SOAP
             </h2>
           </div>
 
-          <div style={s.soapSection}>
-            <SoapMiniRow
-              label="S"
-              fullKey="s"
-              text={data.soap?.s || data.soap?.subjective || ''}
-              color="text-blue-600"
-              onSave={(k, v) => onUpdateSoap?.(k === 's' ? 's' : 'subjective', v)}
-              readOnly={isHistoryView}
-            />
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {/* Subjetivo */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #dbeafe',
+              borderLeft: '4px solid #3b82f6',
+              padding: '20px',
+              boxShadow: '0 1px 3px rgba(59, 130, 246, 0.06)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{
+                  width: '32px', height: '32px',
+                  background: 'linear-gradient(135deg, #dbeafe, #eff6ff)',
+                  borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 900, fontSize: '14px', color: '#2563eb',
+                  fontFamily: "'DM Sans', sans-serif",
+                  border: '1px solid #bfdbfe',
+                }}>S</div>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e40af', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subjetivo</span>
+              </div>
+              <div style={{ minHeight: '40px' }}>
+                <SoapMiniRow
+                  label="S" fullKey="s"
+                  text={data.soap?.s || data.soap?.subjective || ''}
+                  color="text-blue-600"
+                  onSave={(k, v) => onUpdateSoap?.(k === 's' ? 's' : 'subjective', v)}
+                  readOnly={isHistoryView}
+                />
+              </div>
+            </div>
 
-          <div style={s.soapSection}>
-            <SoapMiniRow
-              label="O"
-              fullKey="o"
-              text={data.soap?.o || data.soap?.objective || ''}
-              color="text-emerald-600"
-              onSave={(k, v) => onUpdateSoap?.(k === 'o' ? 'o' : 'objective', v)}
-              readOnly={isHistoryView}
-            />
-          </div>
+            {/* Objetivo */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #d1fae5',
+              borderLeft: '4px solid #10b981',
+              padding: '20px',
+              boxShadow: '0 1px 3px rgba(16, 185, 129, 0.06)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{
+                  width: '32px', height: '32px',
+                  background: 'linear-gradient(135deg, #d1fae5, #ecfdf5)',
+                  borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 900, fontSize: '14px', color: '#059669',
+                  fontFamily: "'DM Sans', sans-serif",
+                  border: '1px solid #a7f3d0',
+                }}>O</div>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#047857', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>Objetivo</span>
+              </div>
+              <div style={{ minHeight: '40px' }}>
+                <SoapMiniRow
+                  label="O" fullKey="o"
+                  text={data.soap?.o || data.soap?.objective || ''}
+                  color="text-emerald-600"
+                  onSave={(k, v) => onUpdateSoap?.(k === 'o' ? 'o' : 'objective', v)}
+                  readOnly={isHistoryView}
+                />
+              </div>
+            </div>
 
-          <div style={s.soapSection}>
-            <SoapMiniRow
-              label="A"
-              fullKey="a"
-              text={data.soap?.a || data.soap?.assessment || ''}
-              color="text-amber-600"
-              onSave={(k, v) => onUpdateSoap?.(k === 'a' ? 'a' : 'assessment', v)}
-              readOnly={isHistoryView}
-            />
-          </div>
+            {/* Evaluación */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #fde68a',
+              borderLeft: '4px solid #f59e0b',
+              padding: '20px',
+              boxShadow: '0 1px 3px rgba(245, 158, 11, 0.06)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{
+                  width: '32px', height: '32px',
+                  background: 'linear-gradient(135deg, #fef3c7, #fffbeb)',
+                  borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 900, fontSize: '14px', color: '#d97706',
+                  fontFamily: "'DM Sans', sans-serif",
+                  border: '1px solid #fde68a',
+                }}>A</div>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#b45309', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>Evaluación</span>
+              </div>
+              <div style={{ minHeight: '40px' }}>
+                <SoapMiniRow
+                  label="A" fullKey="a"
+                  text={data.soap?.a || data.soap?.assessment || ''}
+                  color="text-amber-600"
+                  onSave={(k, v) => onUpdateSoap?.(k === 'a' ? 'a' : 'assessment', v)}
+                  readOnly={isHistoryView}
+                />
+              </div>
+            </div>
 
-          <div style={s.soapSection}>
-            <SoapMiniRow
-              label="P"
-              fullKey="p"
-              text={data.soap?.p || data.soap?.plan || ''}
-              color="text-indigo-400"
-              onSave={(k, v) => onUpdateSoap?.(k === 'p' ? 'p' : 'plan', v)}
-              readOnly={isHistoryView}
-            />
+            {/* Plan */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #e0e7ff',
+              borderLeft: '4px solid #6366f1',
+              padding: '20px',
+              boxShadow: '0 1px 3px rgba(99, 102, 241, 0.06)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{
+                  width: '32px', height: '32px',
+                  background: 'linear-gradient(135deg, #e0e7ff, #eef2ff)',
+                  borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 900, fontSize: '14px', color: '#4f46e5',
+                  fontFamily: "'DM Sans', sans-serif",
+                  border: '1px solid #c7d2fe',
+                }}>P</div>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#4338ca', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan</span>
+              </div>
+              <div style={{ minHeight: '40px' }}>
+                <SoapMiniRow
+                  label="P" fullKey="p"
+                  text={data.soap?.p || data.soap?.plan || ''}
+                  color="text-indigo-400"
+                  onSave={(k, v) => onUpdateSoap?.(k === 'p' ? 'p' : 'plan', v)}
+                  readOnly={isHistoryView}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -566,15 +662,36 @@ export function ClinicalSnapshot({
         {/* Resumen de la Consulta */}
         {totalItems > 0 && (
           <div style={{
-            borderLeft: "3px solid #94a3b8",
-            paddingLeft: "16px",
-            margin: "24px 0"
+            background: 'linear-gradient(135deg, #fafbff 0%, #f8fafc 100%)',
+            borderRadius: '20px',
+            padding: '28px',
+            margin: '24px 0',
+            border: '1px solid #e8ecf4',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
-              <FileBarChart size={15} color="#64748b" strokeWidth={1.8} />
-              <h2 style={{ ...s.h2, color: "#475569", margin: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
+              <FileBarChart size={18} color="#6366f1" strokeWidth={2} />
+              <h2 style={{
+                fontSize: '18px',
+                fontWeight: 800,
+                color: '#334155',
+                margin: 0,
+                fontFamily: "'DM Sans', sans-serif",
+                letterSpacing: '-0.02em',
+              }}>
                 Resumen de la Consulta
               </h2>
+              <div style={{
+                background: '#e0e7ff',
+                color: '#4f46e5',
+                padding: '3px 12px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 700,
+                fontFamily: "'DM Sans', sans-serif",
+              }}>
+                {totalItems} elemento{totalItems !== 1 ? 's' : ''}
+              </div>
             </div>
 
             <div style={{ display: "grid", gap: "20px" }}>
@@ -583,10 +700,10 @@ export function ClinicalSnapshot({
                 <div style={{
                   background: "#ffffff",
                   border: "1px solid #e2e8f0",
-                  borderRadius: "12px",
+                  borderRadius: "16px",
                   padding: "20px",
                   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
-                  borderLeft: "3px solid #94a3b8"
+                  borderLeft: "4px solid #3b82f6"
                 }}>
                   <div style={{
                     display: "flex",
@@ -703,10 +820,10 @@ export function ClinicalSnapshot({
                 <div style={{
                   background: "#ffffff",
                   border: "1px solid #e2e8f0",
-                  borderRadius: "12px",
+                  borderRadius: "16px",
                   padding: "20px",
                   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
-                  borderLeft: "3px solid #94a3b8"
+                  borderLeft: "4px solid #10b981"
                 }}>
                   <div style={{
                     display: "flex",
@@ -927,10 +1044,10 @@ export function ClinicalSnapshot({
                 <div style={{
                   background: "#ffffff",
                   border: "1px solid #e2e8f0",
-                  borderRadius: "12px",
+                  borderRadius: "16px",
                   padding: "20px",
                   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
-                  borderLeft: "3px solid #94a3b8"
+                  borderLeft: "4px solid #8b5cf6"
                 }}>
                   <div style={{
                     display: "flex",
@@ -1033,10 +1150,10 @@ export function ClinicalSnapshot({
                   <div style={{
                     background: "#ffffff",
                     border: "1px solid #e2e8f0",
-                    borderRadius: "12px",
+                    borderRadius: "16px",
                     padding: "20px",
                     boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
-                    borderLeft: "3px solid #94a3b8"
+                    borderLeft: "4px solid #f59e0b"
                   }}>
                     <div style={{
                       display: "flex",
@@ -1138,10 +1255,10 @@ export function ClinicalSnapshot({
                 <div style={{
                   background: "#ffffff",
                   border: "1px solid #e2e8f0",
-                  borderRadius: "12px",
+                  borderRadius: "16px",
                   padding: "20px",
                   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
-                  borderLeft: "3px solid #94a3b8"
+                  borderLeft: "4px solid #06b6d4"
                 }}>
                   <div style={{
                     display: "flex",

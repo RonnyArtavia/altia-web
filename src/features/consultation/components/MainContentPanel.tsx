@@ -526,14 +526,48 @@ export function MainContentPanel({
                   onGeneratePDF={onGeneratePDF}
                 />
               ) : (
-                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-100">
-                    <Stethoscope size={32} className="text-indigo-400" />
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  {/* Hero Title */}
+                  <h2 className="text-[36px] font-black text-rose-400 leading-none tracking-tight mb-6">Nueva Consulta</h2>
+
+                  <div className="bg-gradient-to-br from-white via-rose-50/30 to-indigo-50/30 rounded-3xl border border-slate-200 p-10 text-center shadow-sm">
+                    <div className="w-20 h-20 bg-gradient-to-br from-rose-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-inner border border-white">
+                      <Stethoscope size={36} className="text-rose-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">Iniciar Consulta Médica</h3>
+                    <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                      Active el copiloto clínico en el panel izquierdo para comenzar a registrar la nota SOAP en tiempo real.
+                      La IA transcribirá y estructurará automáticamente los datos clínicos.
+                    </p>
+
+                    {/* Visual hint cards */}
+                    <div className="grid grid-cols-4 gap-3 mt-8 max-w-xl mx-auto">
+                      <div className="bg-white/80 rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center mx-auto mb-2">
+                          <span className="text-blue-600 font-black text-sm">S</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-500">Subjetivo</p>
+                      </div>
+                      <div className="bg-white/80 rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center mx-auto mb-2">
+                          <span className="text-emerald-600 font-black text-sm">O</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-500">Objetivo</p>
+                      </div>
+                      <div className="bg-white/80 rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center mx-auto mb-2">
+                          <span className="text-amber-600 font-black text-sm">A</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-500">Evaluación</p>
+                      </div>
+                      <div className="bg-white/80 rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center mx-auto mb-2">
+                          <span className="text-indigo-600 font-black text-sm">P</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-500">Plan</p>
+                      </div>
+                    </div>
                   </div>
-                  <h2 className="text-lg font-bold text-slate-700 mb-2">Nueva Consulta</h2>
-                  <p className="text-sm text-slate-500 max-w-md mx-auto">
-                    Inicie la consulta desde el panel del copiloto para comenzar a registrar la nota clínica SOAP en tiempo real.
-                  </p>
                 </div>
               )}
             </>

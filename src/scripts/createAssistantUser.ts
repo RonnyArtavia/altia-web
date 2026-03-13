@@ -12,7 +12,7 @@ import { db, app } from '@/config/firebase'
 
 const ASSISTANT_EMAIL = 'asistente@altia.com'
 const ASSISTANT_PASSWORD = 'Test1234!'
-const ASSISTANT_NAME = 'Asistente Dr. Martínez'
+const ASSISTANT_NAME = 'Asistente Martínez'
 const DOCTOR_EMAIL = 'dr.martinez@altea.com'
 
 async function findDoctorByEmail(email: string) {
@@ -93,7 +93,7 @@ export async function createAssistantUser() {
         email: ASSISTANT_EMAIL,
         fullName: ASSISTANT_NAME,
         doctorId,
-        doctorName: doctor.name || doctor.displayName || 'Dr. Martínez',
+        doctorName: doctor.name || doctor.displayName || 'Carlos Martínez Solano',
         doctorLicenseNumber: (doctor as any).medicalLicense || '',
         status: 'approved',
         requestedAt: Timestamp.now(),
