@@ -697,6 +697,125 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
   })()
 
   const finalizeConsultation = () => {
+    // ── 1. Build consultation summary from SOAP ──
+    const today = new Date().toLocaleDateString('es-CR');
+    const soapSummary = [
+      soap.subjective || soap.s ? `S: ${(soap.subjective || soap.s).substring(0, 200)}` : '',
+      soap.objective || soap.o ? `O: ${(soap.objective || soap.o).substring(0, 200)}` : '',
+      soap.assessment || soap.a ? `A: ${(soap.assessment || soap.a).substring(0, 200)}` : '',
+      soap.plan || soap.p ? `P: ${(soap.plan || soap.p).substring(0, 200)}` : '',
+    ].filter(Boolean).join(' | ');
+
+    const newEncounter: ConsultationEntry = {
+      id: `enc-${Date.now()}`,
+      date: today,
+      type: 'Consulta',
+      doctor: patientRecord?.doctor || 'Dr. Actual',
+      summary: soapSummary || 'Consulta médica finalizada',
+    };
+
+    // ── 2. Collect new items from this consultation's fhirPlan ──
+    const newConditions = fhirPlan
+      .filter(i => i.type === 'condition' && i.approved !== false)
+      .map(i => ({
+        name: i.display || i.text,
+        status: i.verificationStatus === 'confirmed' ? 'Activa' :
+          i.verificationStatus === 'ruled-out' ? 'Descartada' : 'Activa',
+        date: today,
+        doctor: patientRecord?.doctor || 'Dr. Actual',
+        notes: i.notes || i.code,
+      }));
+
+    const newMedications = fhirPlan
+      .filter(i => i.type === 'medication' && i.approved !== false)
+      .map(i => ({
+        name: i.display || i.text,
+        dose: i.details || i.dose || '',
+        frequency: i.frequency,
+        duration: i.duration,
+        route: i.route,
+        date: today,
+        doctor: patientRecord?.doctor || 'Dr. Actual',
+        notes: i.notes,
+        warning: i.warning,
+        warningLevel: i.warningLevel,
+        status: 'active',
+      }));
+
+    const newAllergies = fhirPlan
+      .filter(i => i.type === 'allergy' && i.approved !== false)
+      .map(i => ({
+        name: i.display || i.text,
+        severity: i.warningLevel === 'critical' ? 'Severa' :
+          i.warningLevel === 'warning' ? 'Moderada' : 'Leve',
+        date: today,
+        doctor: patientRecord?.doctor || 'Dr. Actual',
+        notes: i.notes,
+      }));
+
+    const newLabOrders = fhirPlan
+      .filter(i => ['labOrder', 'imagingOrder', 'order'].includes(i.type) && i.approved !== false)
+      .map(i => ({
+        name: i.display || i.text,
+        type: i.type === 'labOrder' ? 'Laboratorio' : i.type === 'imagingOrder' ? 'Imagen' : 'Gabinete',
+        status: 'Pendiente',
+        priority: i.warningLevel === 'critical' ? 'Urgente' : 'Normal',
+        date: today,
+        doctor: patientRecord?.doctor || 'Dr. Actual',
+        notes: i.notes || i.details,
+      }));
+
+    const newReferrals = fhirPlan
+      .filter(i => i.type === 'referral' && i.approved !== false)
+      .map(i => ({
+        specialty: i.specialty || i.display || i.text,
+        presumptiveDx: i.reasonForReferral || i.details,
+        justification: i.notes,
+        clinicalSummary: i.clinicalSummary,
+        status: 'Pendiente',
+        date: today,
+        doctor: patientRecord?.doctor || 'Dr. Actual',
+      }));
+
+    // ── 3. Consolidate into ipsData — new consultation replaces/merges ──
+    setIpsData(prev => {
+      // De-duplicate by name
+      const existingCondNames = new Set(newConditions.map(c => c.name));
+      const existingMedNames = new Set(newMedications.map(m => m.name));
+      const existingAllergyNames = new Set(newAllergies.map(a => a.name));
+      const existingOrderNames = new Set(newLabOrders.map(o => o.name));
+      const existingRefSpecs = new Set(newReferrals.map(r => r.specialty));
+
+      // Keep prior active conditions not overridden by this consultation
+      const priorConditions = (prev.conditions || []).filter(c => !existingCondNames.has(c.name));
+      // Keep prior active medications not overridden
+      const priorMedications = (prev.medications || []).filter(m => !existingMedNames.has(m.name));
+      // Keep prior allergies not duplicated
+      const priorAllergies = (prev.allergies || []).filter(a => !existingAllergyNames.has(a.name));
+      // Keep prior pending orders
+      const priorOrders = (prev.labOrders || []).filter(o => !existingOrderNames.has(o.name));
+      // Keep prior referrals
+      const priorReferrals = (prev.referrals || []).filter(r => !existingRefSpecs.has(r.specialty));
+
+      return {
+        ...prev,
+        // New encounter at the top
+        encounters: [newEncounter, ...(prev.encounters || [])],
+        // Merge: new items first, then prior (active ones kept)
+        conditions: [...newConditions, ...priorConditions],
+        medications: [...newMedications, ...priorMedications],
+        allergies: [...newAllergies, ...priorAllergies],
+        labOrders: [...newLabOrders, ...priorOrders],
+        referrals: [...newReferrals, ...priorReferrals],
+        // Keep vaccines, labResults, family/personal history unchanged
+        vaccines: prev.vaccines,
+        labResults: prev.labResults,
+        familyHistory: prev.familyHistory,
+        personalHistory: prev.personalHistory,
+      };
+    });
+
+    // ── 4. Stop consultation state ──
     setInConsultation(false);
     setElapsedTime(0);
     setConsultationStartTime(null);
