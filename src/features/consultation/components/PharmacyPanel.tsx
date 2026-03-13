@@ -35,6 +35,8 @@ interface PharmacyPanelProps {
   patientRecord?: PatientRecordDisplay;
   onGeneratePDF?: (type: 'prescription') => void;
   onOutput?: (channel: OutputChannel, context: string) => void;
+  /** Callback when a manual medication is added — syncs back to consultation ipsData */
+  onManualMedication?: (med: { name: string; dose: string; frequency?: string; duration?: string; route?: string; instructions?: string }) => void;
 }
 
 // ── Types ──────────────────────────────────────────────────
@@ -69,88 +71,7 @@ interface ContraindicationEntry {
 
 // ── Medication catalogs ────────────────────────────────────
 
-const COMMON_MEDICATIONS = [
-  'Acetaminofén (Paracetamol)',
-  'Ibuprofeno',
-  'Diclofenaco',
-  'Omeprazol',
-  'Amoxicilina',
-  'Amoxicilina + Ác. Clavulánico',
-  'Azitromicina',
-  'Ciprofloxacina',
-  'Metformina',
-  'Losartán',
-  'Enalapril',
-  'Amlodipino',
-  'Atorvastatina',
-  'Rosuvastatina',
-  'Metoprolol',
-  'Ácido acetilsalicílico (ASA)',
-  'Clopidogrel',
-  'Levotiroxina',
-  'Salbutamol (inhalador)',
-  'Fluticasona (inhalador)',
-  'Insulina Glargina',
-  'Insulina Lispro',
-  'Prednisona',
-  'Dexametasona',
-  'Loratadina',
-  'Cetirizina',
-  'Ranitidina',
-  'Metoclopramida',
-  'Tramadol',
-  'Gabapentina',
-  'Sertralina',
-  'Fluoxetina',
-  'Clonazepam',
-  'Alprazolam',
-];
-
-const FREQUENCIES = [
-  'Cada 6 horas',
-  'Cada 8 horas',
-  'Cada 12 horas',
-  'Cada 24 horas (una vez al día)',
-  'Cada 4 horas',
-  'Dos veces al día (BID)',
-  'Tres veces al día (TID)',
-  'Antes de dormir (HS)',
-  'En ayunas',
-  'Con alimentos',
-  'PRN (según necesidad)',
-  'Semanal',
-  'Quincenal',
-  'Mensual',
-];
-
-const ROUTES = [
-  'Vía oral (PO)',
-  'Sublingual (SL)',
-  'Intramuscular (IM)',
-  'Intravenoso (IV)',
-  'Subcutáneo (SC)',
-  'Tópico',
-  'Inhalado',
-  'Rectal',
-  'Oftálmico',
-  'Ótico',
-  'Nasal',
-  'Transdérmico',
-];
-
-const DURATIONS = [
-  '3 días',
-  '5 días',
-  '7 días',
-  '10 días',
-  '14 días',
-  '21 días',
-  '30 días',
-  '60 días',
-  '90 días',
-  'Indefinido / Crónico',
-  'Dosis única',
-];
+// ── Catalogs intentionally removed — will be populated via MCP in a future phase ──
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -186,7 +107,7 @@ function typeConfig(type: ContraindicationEntry['type']) {
 
 // ── Main Component ──────────────────────────────────────────
 
-export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGeneratePDF, onOutput }: PharmacyPanelProps) {
+export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGeneratePDF, onOutput, onManualMedication }: PharmacyPanelProps) {
   // patientRecord available for future use (e.g. prescription headers)
   void _patientRecord;
   // Section expansion
@@ -199,7 +120,6 @@ export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGenera
 
   // Medication form fields
   const [formMedication, setFormMedication] = useState('');
-  const [formCustomMed, setFormCustomMed] = useState('');
   const [formDose, setFormDose] = useState('');
   const [formFrequency, setFormFrequency] = useState('');
   const [formDuration, setFormDuration] = useState('');
@@ -209,89 +129,18 @@ export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGenera
   // Med filter
   const [medFilter, setMedFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
-  // Demo contraindications data
-  const [contraindications] = useState<ContraindicationEntry[]>([
-    {
-      id: 'ci-1',
-      date: '10/03/2026',
-      type: 'contraindication',
-      medication: 'Ibuprofeno',
-      description: 'Contraindicado por antecedente de úlcera gástrica activa. Usar acetaminofén como alternativa.',
-      severity: 'high',
-      source: 'Dr. María González'
-    },
-    {
-      id: 'ci-2',
-      date: '08/03/2026',
-      type: 'interaction',
-      medication: 'Metformina + Alcohol',
-      description: 'Riesgo de acidosis láctica. Se recomienda abstinencia de alcohol durante el tratamiento.',
-      severity: 'high',
-      source: 'Sistema de alertas'
-    },
-    {
-      id: 'ci-3',
-      date: '05/03/2026',
-      type: 'recommendation',
-      medication: 'Atorvastatina',
-      description: 'Tomar preferiblemente en la noche para mejor efectividad. Controlar enzimas hepáticas cada 6 meses.',
-      severity: 'low',
-      source: 'Dr. Carlos Rodríguez'
-    },
-    {
-      id: 'ci-4',
-      date: '01/03/2026',
-      type: 'alert',
-      medication: 'Losartán',
-      description: 'Monitorear potasio sérico por riesgo de hiperkalemia. Control mensual recomendado.',
-      severity: 'medium',
-      source: 'Sistema de alertas'
-    },
-  ]);
+  // Contraindications — will be populated from clinical context
+  const [contraindications] = useState<ContraindicationEntry[]>([]);
 
-  // Demo previous prescriptions
-  const [demoPrescriptions] = useState<Prescription[]>([
-    {
-      id: 'rx-prev-1',
-      date: '01/03/2026',
-      doctor: 'Dr. María González',
-      status: 'active',
-      diagnosis: 'Hipertensión arterial, Diabetes tipo 2',
-      items: [
-        { medication: 'Losartán', dose: '50 mg', frequency: 'Cada 12 horas', duration: '90 días', route: 'Vía oral (PO)', instructions: 'Tomar con agua' },
-        { medication: 'Metformina', dose: '850 mg', frequency: 'Cada 12 horas', duration: '90 días', route: 'Vía oral (PO)', instructions: 'Tomar con alimentos' },
-      ]
-    },
-    {
-      id: 'rx-prev-2',
-      date: '15/02/2026',
-      doctor: 'Dr. Carlos Rodríguez',
-      status: 'completed',
-      diagnosis: 'Infección urinaria',
-      items: [
-        { medication: 'Ciprofloxacina', dose: '500 mg', frequency: 'Cada 12 horas', duration: '7 días', route: 'Vía oral (PO)', instructions: 'Completar esquema' },
-      ]
-    },
-    {
-      id: 'rx-prev-3',
-      date: '05/02/2026',
-      doctor: 'Dr. Ana Martínez',
-      status: 'completed',
-      diagnosis: 'Faringitis aguda',
-      items: [
-        { medication: 'Amoxicilina', dose: '500 mg', frequency: 'Cada 8 horas', duration: '7 días', route: 'Vía oral (PO)', instructions: 'Completar esquema antibiótico' },
-        { medication: 'Ibuprofeno', dose: '400 mg', frequency: 'Cada 8 horas PRN', duration: '5 días', route: 'Vía oral (PO)', instructions: 'Solo si presenta dolor o fiebre' },
-      ]
-    },
-  ]);
+  // Previous prescriptions — will come from Firestore in production
+  const [demoPrescriptions] = useState<Prescription[]>([]);
 
   // Add med to current prescription
   const handleAddMedToRx = () => {
-    const medName = formMedication === '__custom__' ? formCustomMed : formMedication;
-    if (!medName.trim() || !formDose.trim()) return;
+    if (!formMedication.trim() || !formDose.trim()) return;
 
     const item: PrescriptionItem = {
-      medication: medName.trim(),
+      medication: formMedication.trim(),
       dose: formDose.trim(),
       frequency: formFrequency || 'Cada 8 horas',
       duration: formDuration || '7 días',
@@ -301,9 +150,18 @@ export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGenera
 
     setRxItems(prev => [...prev, item]);
 
+    // Sync back to consultation ipsData
+    onManualMedication?.({
+      name: item.medication,
+      dose: item.dose,
+      frequency: item.frequency || undefined,
+      duration: item.duration || undefined,
+      route: item.route || undefined,
+      instructions: item.instructions || undefined,
+    });
+
     // Reset form
     setFormMedication('');
-    setFormCustomMed('');
     setFormDose('');
     setFormFrequency('');
     setFormDuration('');
@@ -442,24 +300,14 @@ export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGenera
                   {/* Medication */}
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Medicamento *</label>
-                    <select
+                    <input
+                      type="text"
+                      placeholder="Ej: Acetaminofén 500mg, Losartán, Metformina..."
                       value={formMedication}
                       onChange={e => setFormMedication(e.target.value)}
                       className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300"
-                    >
-                      <option value="">Seleccione un medicamento...</option>
-                      {COMMON_MEDICATIONS.map(m => <option key={m} value={m}>{m}</option>)}
-                      <option value="__custom__">➕ Otro (escribir manualmente)</option>
-                    </select>
-                    {formMedication === '__custom__' && (
-                      <input
-                        type="text"
-                        placeholder="Nombre del medicamento..."
-                        value={formCustomMed}
-                        onChange={e => setFormCustomMed(e.target.value)}
-                        className="w-full mt-2 px-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300"
-                      />
-                    )}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">🔮 En el futuro se autocompletará vía catálogos MCP</p>
                   </div>
 
                   {/* Dose */}
@@ -477,40 +325,37 @@ export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGenera
                   {/* Route */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Vía de Administración</label>
-                    <select
+                    <input
+                      type="text"
+                      placeholder="Ej: Vía oral, Inhalado, Tópico..."
                       value={formRoute}
                       onChange={e => setFormRoute(e.target.value)}
                       className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300"
-                    >
-                      <option value="">Seleccione...</option>
-                      {ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    />
                   </div>
 
                   {/* Frequency */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Frecuencia</label>
-                    <select
+                    <input
+                      type="text"
+                      placeholder="Ej: Cada 8 horas, Una vez al día..."
                       value={formFrequency}
                       onChange={e => setFormFrequency(e.target.value)}
                       className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300"
-                    >
-                      <option value="">Seleccione...</option>
-                      {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
-                    </select>
+                    />
                   </div>
 
                   {/* Duration */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Duración</label>
-                    <select
+                    <input
+                      type="text"
+                      placeholder="Ej: 7 días, 30 días, Crónico..."
                       value={formDuration}
                       onChange={e => setFormDuration(e.target.value)}
                       className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300"
-                    >
-                      <option value="">Seleccione...</option>
-                      {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                    />
                   </div>
 
                   {/* Instructions */}
@@ -536,7 +381,7 @@ export function PharmacyPanel({ ipsData, patientRecord: _patientRecord, onGenera
                   </button>
                   <button
                     onClick={handleAddMedToRx}
-                    disabled={!formMedication || (formMedication === '__custom__' && !formCustomMed.trim()) || !formDose.trim()}
+                    disabled={!formMedication.trim() || !formDose.trim()}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-40 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-md shadow-teal-200"
                   >
                     <Plus className="h-3.5 w-3.5" />

@@ -128,6 +128,12 @@ interface MainContentPanelProps {
   preferFastModel?: boolean;
   onToggleModelSpeed?: () => void;
   consultations?: ConsultationEntry[];
+  /** Reverse-sync: manual order added in OrdersPanel */
+  onManualOrder?: (order: { name: string; type: string; priority: string; notes?: string }) => void;
+  /** Reverse-sync: manual medication added in PharmacyPanel */
+  onManualMedication?: (med: { name: string; dose: string; frequency?: string; duration?: string; route?: string; instructions?: string }) => void;
+  /** Reverse-sync: manual referral added in ReferralsPanel */
+  onManualReferral?: (ref: { specialty: string; presumptiveDx?: string; justification?: string; clinicalSummary?: string; institution?: string }) => void;
 }
 
 // Patient Context Summary Component
@@ -398,7 +404,10 @@ export function MainContentPanel({
   onEncounterClick,
   onBack,
   fontSizePercent = 100,
-  consultations = []
+  consultations = [],
+  onManualOrder,
+  onManualMedication,
+  onManualReferral,
 }: MainContentPanelProps) {
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -587,6 +596,7 @@ export function MainContentPanel({
               patientRecord={patientRecord}
               onGeneratePDF={onGeneratePDF}
               onOutput={handleOutputChannel}
+              onManualOrder={onManualOrder}
             />
           )}
 
@@ -597,6 +607,7 @@ export function MainContentPanel({
               patientRecord={patientRecord}
               onGeneratePDF={onGeneratePDF}
               onOutput={handleOutputChannel}
+              onManualReferral={onManualReferral}
             />
           )}
 
@@ -607,6 +618,7 @@ export function MainContentPanel({
               patientRecord={patientRecord}
               onGeneratePDF={onGeneratePDF}
               onOutput={handleOutputChannel}
+              onManualMedication={onManualMedication}
             />
           )}
 

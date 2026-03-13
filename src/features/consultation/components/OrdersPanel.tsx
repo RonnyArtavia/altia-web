@@ -37,6 +37,8 @@ interface OrdersPanelProps {
   patientRecord?: PatientRecordDisplay;
   onGeneratePDF?: (type: 'labOrder') => void;
   onOutput?: (channel: OutputChannel, context: string) => void;
+  /** Callback when a manual order is added — syncs back to consultation ipsData */
+  onManualOrder?: (order: { name: string; type: string; priority: string; notes?: string }) => void;
 }
 
 /** Saved result for an order — immutable once saved */
@@ -60,70 +62,7 @@ interface NewOrder {
   notes: string;
 }
 
-// ── Predefined test catalogs ──────────────────────────────
-
-const LAB_TESTS = [
-  'Hemograma completo',
-  'Química sanguínea (glucosa, creatinina, BUN, ácido úrico)',
-  'Perfil lipídico',
-  'Pruebas de función hepática (TGO, TGP, FA, GGT, Bilirrubinas)',
-  'Pruebas de función tiroidea (TSH, T3, T4 libre)',
-  'Hemoglobina glicosilada (HbA1c)',
-  'Electrolitos séricos (Na, K, Cl, Ca, Mg)',
-  'Urianálisis completo',
-  'Urocultivo con antibiograma',
-  'Tiempos de coagulación (TP, TPT, INR)',
-  'Velocidad de eritrosedimentación (VES)',
-  'Proteína C reactiva (PCR)',
-  'Antígeno prostático específico (PSA)',
-  'Examen general de heces',
-  'Perfil renal',
-  'Ácido úrico',
-  'Factor reumatoideo',
-  'VDRL',
-  'HIV (ELISA)',
-  'Hepatitis B (HBsAg)',
-  'Hepatitis C (Anti-HCV)',
-];
-
-const IMAGING_TESTS = [
-  'Radiografía de tórax PA',
-  'Radiografía de abdomen',
-  'Radiografía de columna (cervical/dorsal/lumbar)',
-  'Radiografía de extremidades',
-  'Ultrasonido abdominal',
-  'Ultrasonido pélvico',
-  'Ultrasonido de tiroides',
-  'Ultrasonido renal',
-  'Ultrasonido Doppler vascular',
-  'Tomografía axial computarizada (TAC) simple',
-  'Tomografía axial computarizada (TAC) con contraste',
-  'Resonancia magnética (RM) simple',
-  'Resonancia magnética (RM) con contraste',
-  'Mamografía bilateral',
-  'Densitometría ósea (DEXA)',
-];
-
-const CABINET_TESTS = [
-  'Electrocardiograma (ECG/EKG)',
-  'Electroencefalograma (EEG)',
-  'Ecocardiograma transtorácico',
-  'Ecocardiograma transesofágico',
-  'Espirometría',
-  'Holter de 24 horas',
-  'MAPA (Monitoreo ambulatorio de presión arterial)',
-  'Prueba de esfuerzo',
-  'Electromiografía (EMG)',
-  'Velocidades de conducción nerviosa',
-  'Gammagrafía tiroidea',
-  'Gammagrafía ósea',
-  'Gammagrafía renal',
-  'Endoscopia digestiva alta',
-  'Colonoscopia',
-  'Broncoscopia',
-  'Cistoscopia',
-  'Audiometría',
-];
+// ── Catalogs intentionally removed — will be populated via MCP in a future phase ──
 
 const CATEGORY_CONFIG: Record<OrderCategory, {
   label: string;
@@ -131,7 +70,6 @@ const CATEGORY_CONFIG: Record<OrderCategory, {
   color: string;
   bgColor: string;
   borderColor: string;
-  tests: string[];
 }> = {
   lab: {
     label: 'Laboratorio',
@@ -139,7 +77,6 @@ const CATEGORY_CONFIG: Record<OrderCategory, {
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-50',
     borderColor: 'border-emerald-200',
-    tests: LAB_TESTS,
   },
   imaging: {
     label: 'Imágenes Médicas',
@@ -147,7 +84,6 @@ const CATEGORY_CONFIG: Record<OrderCategory, {
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
-    tests: IMAGING_TESTS,
   },
   cabinet: {
     label: 'Pruebas de Gabinete',
@@ -155,7 +91,6 @@ const CATEGORY_CONFIG: Record<OrderCategory, {
     color: 'text-violet-600',
     bgColor: 'bg-violet-50',
     borderColor: 'border-violet-200',
-    tests: CABINET_TESTS,
   },
 };
 
@@ -172,7 +107,7 @@ function statusIcon(status?: string) {
 
 // ── Main Component ──────────────────────────────────────────
 
-export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelProps) {
+export function OrdersPanel({ ipsData, onGeneratePDF, onOutput, onManualOrder }: OrdersPanelProps) {
   const [activeCategory, setActiveCategory] = useState<OrderCategory>('lab');
   const [showNewForm, setShowNewForm] = useState(false);
   const [localOrders, setLocalOrders] = useState<NewOrder[]>([]);
@@ -191,7 +126,6 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
 
   // Form state
   const [formTestName, setFormTestName] = useState('');
-  const [formCustomTest, setFormCustomTest] = useState('');
   const [formPriority, setFormPriority] = useState<'routine' | 'urgent'>('routine');
   const [formIndication, setFormIndication] = useState('');
   const [formNotes, setFormNotes] = useState('');
@@ -208,12 +142,11 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
   });
 
   const handleAddOrder = () => {
-    const testName = formTestName === '__custom__' ? formCustomTest : formTestName;
-    if (!testName.trim()) return;
+    if (!formTestName.trim()) return;
 
     const order: NewOrder = {
       category: activeCategory,
-      testName: testName.trim(),
+      testName: formTestName.trim(),
       priority: formPriority,
       clinicalIndication: formIndication.trim(),
       notes: formNotes.trim(),
@@ -221,9 +154,16 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
 
     setLocalOrders(prev => [...prev, order]);
 
+    // Sync back to consultation ipsData
+    onManualOrder?.({
+      name: order.testName,
+      type: config.label,
+      priority: order.priority === 'urgent' ? 'Urgente' : 'Normal',
+      notes: order.clinicalIndication || order.notes || undefined,
+    });
+
     // Reset form
     setFormTestName('');
-    setFormCustomTest('');
     setFormPriority('routine');
     setFormIndication('');
     setFormNotes('');
@@ -325,29 +265,17 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
           </h4>
 
           <div className="space-y-4">
-            {/* Test selection */}
+            {/* Test name — free text (catalogs via MCP in future) */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Estudio / Prueba</label>
-              <select
+              <input
+                type="text"
+                placeholder={activeCategory === 'lab' ? 'Ej: Hemograma completo, Perfil lipídico...' : activeCategory === 'imaging' ? 'Ej: Radiografía de tórax, Ultrasonido abdominal...' : 'Ej: Electrocardiograma, Espirometría...'}
                 value={formTestName}
                 onChange={e => setFormTestName(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300"
-              >
-                <option value="">Seleccione un estudio...</option>
-                {config.tests.map(test => (
-                  <option key={test} value={test}>{test}</option>
-                ))}
-                <option value="__custom__">➕ Otro (escribir manualmente)</option>
-              </select>
-              {formTestName === '__custom__' && (
-                <input
-                  type="text"
-                  placeholder="Escriba el nombre del estudio..."
-                  value={formCustomTest}
-                  onChange={e => setFormCustomTest(e.target.value)}
-                  className="w-full mt-2 px-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300"
-                />
-              )}
+              />
+              <p className="text-[10px] text-slate-400 mt-1">🔮 En el futuro se autocompletará vía catálogos MCP</p>
             </div>
 
             {/* Priority */}
@@ -413,7 +341,7 @@ export function OrdersPanel({ ipsData, onGeneratePDF, onOutput }: OrdersPanelPro
               </button>
               <button
                 onClick={handleAddOrder}
-                disabled={!formTestName || (formTestName === '__custom__' && !formCustomTest.trim())}
+                disabled={!formTestName.trim()}
                 className={cn(
                   'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-40',
                   'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-200'

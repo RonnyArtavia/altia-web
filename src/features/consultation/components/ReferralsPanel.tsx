@@ -28,6 +28,8 @@ interface ReferralsPanelProps {
   patientRecord?: PatientRecordDisplay;
   onGeneratePDF?: (type: 'referral') => void;
   onOutput?: (channel: OutputChannel, context: string) => void;
+  /** Callback when a manual referral is created — syncs back to consultation ipsData */
+  onManualReferral?: (ref: { specialty: string; presumptiveDx?: string; justification?: string; clinicalSummary?: string; institution?: string }) => void;
 }
 
 interface Referral {
@@ -42,40 +44,7 @@ interface Referral {
 }
 
 // ── Medical Specialties ──────────────────────────────────────
-
-const SPECIALTIES = [
-  'Anestesiología',
-  'Cardiología',
-  'Cirugía General',
-  'Cirugía Cardiovascular',
-  'Cirugía Plástica',
-  'Dermatología',
-  'Endocrinología',
-  'Gastroenterología',
-  'Geriatría',
-  'Ginecología y Obstetricia',
-  'Hematología',
-  'Infectología',
-  'Medicina Interna',
-  'Medicina Física y Rehabilitación',
-  'Nefrología',
-  'Neumología',
-  'Neurocirugía',
-  'Neurología',
-  'Nutrición',
-  'Oftalmología',
-  'Oncología',
-  'Ortopedia y Traumatología',
-  'Otorrinolaringología',
-  'Patología',
-  'Pediatría',
-  'Psicología',
-  'Psiquiatría',
-  'Radiología',
-  'Reumatología',
-  'Urología',
-  'Otra especialidad',
-];
+// Catalogs intentionally removed — will be populated via MCP in a future phase
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -108,7 +77,7 @@ function generateClinicalSummary(ipsData: IPSDisplayData, patientRecord?: Patien
 
 // ── Main Component ──────────────────────────────────────────
 
-export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF, onOutput }: ReferralsPanelProps) {
+export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF, onOutput, onManualReferral }: ReferralsPanelProps) {
   const [showNewForm, setShowNewForm] = useState(false);
   const [localReferrals, setLocalReferrals] = useState<Referral[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -138,6 +107,15 @@ export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF, onOutput
 
     setLocalReferrals(prev => [referral, ...prev]);
 
+    // Sync back to consultation ipsData
+    onManualReferral?.({
+      specialty: referral.specialty,
+      presumptiveDx: referral.presumptiveDx || undefined,
+      justification: referral.justification || undefined,
+      clinicalSummary: referral.clinicalSummary || undefined,
+      institution: referral.institution || undefined,
+    });
+
     // Reset form
     setFormSpecialty('');
     setFormInstitution('');
@@ -147,7 +125,23 @@ export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF, onOutput
     setShowNewForm(false);
   };
 
-  const allReferrals = localReferrals; // In future, merge with Firestore data
+  // Merge local referrals with AI-dictated referrals from ipsData
+  const aiReferrals: Referral[] = (ipsData.referrals || []).map((r, i) => ({
+    id: `ai-ref-${i}`,
+    date: r.date || new Date().toLocaleDateString('es-CR'),
+    specialty: r.specialty || 'Especialidad',
+    institution: r.institution,
+    presumptiveDx: r.presumptiveDx || '',
+    justification: r.justification || '',
+    clinicalSummary: r.clinicalSummary || autoSummary,
+    status: 'pending' as const,
+  }));
+
+  const localSpecialties = new Set(localReferrals.map(r => r.specialty));
+  const allReferrals = [
+    ...localReferrals,
+    ...aiReferrals.filter(r => !localSpecialties.has(r.specialty))
+  ];
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -229,14 +223,14 @@ export function ReferralsPanel({ ipsData, patientRecord, onGeneratePDF, onOutput
                 <Stethoscope className="h-3.5 w-3.5 text-purple-500" />
                 Especialidad de referencia *
               </label>
-              <select
+              <input
+                type="text"
+                placeholder="Ej: Cardiología, Neurología, Neumología..."
                 value={formSpecialty}
                 onChange={e => setFormSpecialty(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300"
-              >
-                <option value="">Seleccione la especialidad...</option>
-                {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              />
+              <p className="text-[10px] text-slate-400 mt-1">🔮 En el futuro se autocompletará vía catálogos MCP</p>
             </div>
 
             {/* Institution (optional) */}

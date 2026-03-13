@@ -579,12 +579,41 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           notes: item.notes
         }));
 
+      // Cross-post: Get lab/imaging/general orders from FHIR plan → Órdenes tab
+      const newLabOrders = fhirPlan
+        .filter(item => ['labOrder', 'imagingOrder', 'order'].includes(item.type))
+        .map(item => ({
+          name: item.display || item.text || 'Orden médica',
+          type: item.type === 'labOrder' ? 'Laboratorio' :
+            item.type === 'imagingOrder' ? 'Imagen' : 'Gabinete',
+          status: 'Pendiente',
+          priority: item.warningLevel === 'critical' ? 'Urgente' : 'Normal',
+          date: new Date().toLocaleDateString(),
+          doctor: 'Dr. Actual',
+          notes: item.notes || item.details
+        }));
+
+      // Cross-post: Get referrals from FHIR plan → Referencias tab
+      const newReferrals = fhirPlan
+        .filter(item => item.type === 'referral')
+        .map(item => ({
+          specialty: item.specialty || item.display || item.text || 'Especialidad',
+          presumptiveDx: item.reasonForReferral || item.details,
+          justification: item.notes,
+          clinicalSummary: item.clinicalSummary,
+          status: 'Pendiente',
+          date: new Date().toLocaleDateString(),
+          doctor: 'Dr. Actual'
+        }));
+
       // Merge with existing data, avoiding duplicates by name
       const existingMedNames = new Set((prev.medications || []).map(m => m.name));
       const existingAllergyNames = new Set((prev.allergies || []).map(a => a.name));
       const existingConditionNames = new Set((prev.conditions || []).map(c => c.name));
       const existingFamilyNames = new Set((prev.familyHistory || []).map(f => f.name));
       const existingPersonalNames = new Set((prev.personalHistory || []).map(p => p.name));
+      const existingOrderNames = new Set((prev.labOrders || []).map(o => o.name));
+      const existingReferralSpecs = new Set((prev.referrals || []).map(r => r.specialty));
 
       return {
         ...prev,
@@ -607,6 +636,14 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
         personalHistory: [
           ...(prev.personalHistory || []),
           ...newPersonalHistory.filter(ph => !existingPersonalNames.has(ph.name))
+        ],
+        labOrders: [
+          ...(prev.labOrders || []),
+          ...newLabOrders.filter(order => !existingOrderNames.has(order.name))
+        ],
+        referrals: [
+          ...(prev.referrals || []),
+          ...newReferrals.filter(ref => !existingReferralSpecs.has(ref.specialty))
         ]
       };
     });
@@ -943,6 +980,93 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
     approveSuggestion(suggestion);
   }, [approveSuggestion]);
 
+  // ── Reverse-sync: manual entries in tabs → ipsData + SOAP Plan ──
+  // Helper: append a line to SOAP Plan (both 'plan' and 'p' fields)
+  const appendToPlan = useCallback((line: string) => {
+    const current = soap.plan || soap.p || '';
+    const separator = current.trim() ? '\n' : '';
+    const updated = current + separator + line;
+    updateSoapSection('plan', updated);
+    updateSoapSection('p', updated);
+  }, [soap.plan, soap.p, updateSoapSection]);
+
+  const handleManualOrder = useCallback((order: { name: string; type: string; priority: string; notes?: string }) => {
+    setIpsData(prev => {
+      const existing = new Set((prev.labOrders || []).map(o => o.name));
+      if (existing.has(order.name)) return prev;
+      return {
+        ...prev,
+        labOrders: [
+          ...(prev.labOrders || []),
+          {
+            name: order.name,
+            type: order.type,
+            status: 'Pendiente',
+            priority: order.priority,
+            date: new Date().toLocaleDateString(),
+            doctor: 'Dr. Actual',
+            notes: order.notes,
+          }
+        ]
+      };
+    });
+    // Sync to SOAP Plan
+    const priorityTag = order.priority === 'Urgente' ? ' [URGENTE]' : '';
+    appendToPlan(`• Orden ${order.type}: ${order.name}${priorityTag}${order.notes ? ` — ${order.notes}` : ''}`);
+  }, [appendToPlan]);
+
+  const handleManualMedication = useCallback((med: { name: string; dose: string; frequency?: string; duration?: string; route?: string; instructions?: string }) => {
+    setIpsData(prev => {
+      const existing = new Set((prev.medications || []).map(m => m.name));
+      if (existing.has(med.name)) return prev;
+      return {
+        ...prev,
+        medications: [
+          ...(prev.medications || []),
+          {
+            name: med.name,
+            dose: med.dose,
+            frequency: med.frequency,
+            duration: med.duration,
+            route: med.route,
+            date: new Date().toLocaleDateString(),
+            doctor: 'Dr. Actual',
+            notes: med.instructions,
+            status: 'active',
+          }
+        ]
+      };
+    });
+    // Sync to SOAP Plan
+    const parts = [med.name, med.dose, med.frequency, med.route, med.duration].filter(Boolean).join(', ');
+    appendToPlan(`• Rx: ${parts}${med.instructions ? ` — ${med.instructions}` : ''}`);
+  }, [appendToPlan]);
+
+  const handleManualReferral = useCallback((ref: { specialty: string; presumptiveDx?: string; justification?: string; clinicalSummary?: string; institution?: string }) => {
+    setIpsData(prev => {
+      const existing = new Set((prev.referrals || []).map(r => r.specialty));
+      if (existing.has(ref.specialty)) return prev;
+      return {
+        ...prev,
+        referrals: [
+          ...(prev.referrals || []),
+          {
+            specialty: ref.specialty,
+            institution: ref.institution,
+            presumptiveDx: ref.presumptiveDx,
+            justification: ref.justification,
+            clinicalSummary: ref.clinicalSummary,
+            status: 'Pendiente',
+            date: new Date().toLocaleDateString(),
+            doctor: 'Dr. Actual',
+          }
+        ]
+      };
+    });
+    // Sync to SOAP Plan
+    appendToPlan(`• Referencia a ${ref.specialty}${ref.presumptiveDx ? `: ${ref.presumptiveDx}` : ''}${ref.institution ? ` (${ref.institution})` : ''}`);
+  }, [appendToPlan]);
+
   // Mobile layout
   if (layoutInfo.isMobile) {
     return (
@@ -964,6 +1088,9 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
             onFinalize={finalizeConsultation}
             isProcessing={aiProcessing}
             onGeneratePDF={handleGeneratePDF}
+            onManualOrder={handleManualOrder}
+            onManualMedication={handleManualMedication}
+            onManualReferral={handleManualReferral}
           />
         </div>
 
@@ -1058,6 +1185,9 @@ export function MedicalNotesCopilotPage(): React.ReactElement {
           onFinalize={finalizeConsultation}
           isProcessing={aiProcessing}
           onGeneratePDF={handleGeneratePDF}
+          onManualOrder={handleManualOrder}
+          onManualMedication={handleManualMedication}
+          onManualReferral={handleManualReferral}
         />
       </div>
 

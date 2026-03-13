@@ -227,6 +227,17 @@ export interface IPSPersonalHistory {
   notes?: string;
 }
 
+export interface IPSReferral {
+  specialty?: string;
+  institution?: string;
+  presumptiveDx?: string;
+  justification?: string;
+  clinicalSummary?: string;
+  status?: string;
+  date?: string;
+  doctor?: string;
+}
+
 export interface IPSDisplayData {
   encounters: ConsultationEntry[];
   allergies: Partial<IPSAllergy>[];
@@ -238,6 +249,7 @@ export interface IPSDisplayData {
   clinicalEvolution?: ConsultationEntry[];
   familyHistory?: Partial<IPSFamilyHistory>[];
   personalHistory?: Partial<IPSPersonalHistory>[];
+  referrals?: Partial<IPSReferral>[];
 }
 
 export interface VitalSignsInput {
